@@ -264,5 +264,13 @@ See [Subagents](/guide/subagents) for roles, budgets and observability.
 | Key | Default |
 | --- | --- |
 | `servers` | `{}` — an object keyed by server name, matching the MCP `mcpServers` shape |
+| `servers.<name>.command` | — — stdio transport |
+| `servers.<name>.args` | `[]` — stdio argv |
+| `servers.<name>.env` | `{}` — extra environment for the child process |
+| `servers.<name>.cwd` | process cwd — stdio working directory |
+| `servers.<name>.url` | — — streamable HTTP endpoint |
+| `servers.<name>.headers` | `{}` — HTTP headers; `${ENV_VAR}` is expanded |
+| `servers.<name>.approval` | `ask` — `auto` runs its tools without prompting |
+| `servers.<name>.timeoutMs` | `120000` — per request |
 
-See [Tools](/guide/tools) and [Models](/guide/models) for behaviour.
+A server must set exactly one of `command` and `url`. See [Model Context Protocol](/guide/mcp).

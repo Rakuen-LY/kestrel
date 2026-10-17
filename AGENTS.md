@@ -109,3 +109,8 @@ never contains agent logic.
   avoid one summary call per step. Failures and empty summaries leave history untouched; a run must
   never fail because compaction did. The console refetches on `context.compacted` because history is
   rewritten server-side.
+- MCP (`plugins/mcp`) has two transports behind one `McpClient` interface: stdio (NDJSON over a
+  child process) and streamable HTTP (POST answering JSON or SSE). HTTP keeps `Mcp-Session-Id` and
+  re-initializes once on `404`/`410`; `${ENV_VAR}` in headers expands and empty headers are dropped
+  so a missing token fails instead of sending `Authorization: `. Tool names are
+  `mcp__<server>__<tool>`; a failing server is logged and skipped, never fatal.

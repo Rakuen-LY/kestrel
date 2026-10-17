@@ -14,7 +14,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Approvals for `ask` tools over HTTP and CLI | Done |
 | OpenAI-compatible provider (OpenAI, DeepSeek, vLLM, Ollama) | Done |
 | Core filesystem, search, shell, fetch, todo and finish tools | Done |
-| Memory tools and Model Context Protocol bridge | Done |
+| Memory tools and MCP bridge (stdio and streamable HTTP) | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
 | Plugin UI contributions: browser bundles rendered in console slots | Done |
 | Workspace checkpoints, rewind and safety snapshots | Done |
@@ -34,6 +34,8 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 - Automated release workflow with signed tags and changelog generation.
 
 ### 2. Plugin UI hardening
+
+MCP remains tools-only: resources, prompts and sampling are the next bridge work.
 
 Bundles now load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
 plugin's `web/` directory. Remaining work:
@@ -69,6 +71,7 @@ This is the largest piece of work and the one that changes the security story mo
 - ~~Sub-agents and delegation~~ — shipped in `@kestrel/plugin-subagents` with isolated context,
   roles and a bounded depth (see [Subagents](/guide/subagents)). Still missing: parallel fan-out in
   one tool call, and per-branch cost reporting.
+- MCP resources, prompts and sampling — tools are bridged today; see [MCP](/guide/mcp).
 - ~~Context compaction and summarisation for long sessions~~ — shipped; see
   [Long sessions](/guide/models#long-sessions-and-compaction).
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery

@@ -61,6 +61,7 @@ export default defineConfig({
             { text: "Skills", link: "/guide/skills" },
             { text: "Subagents", link: "/guide/subagents" },
             { text: "Tools & approvals", link: "/guide/tools" },
+            { text: "Model Context Protocol", link: "/guide/mcp" },
             { text: "Checkpoints & rollback", link: "/guide/checkpoints" },
             { text: "Models & providers", link: "/guide/models" },
             { text: "Protocol & API", link: "/guide/protocol" },
