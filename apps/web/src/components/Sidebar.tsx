@@ -1,5 +1,6 @@
 import type { SessionSummary } from "@kestrel/protocol";
 import type { Connection } from "../state.js";
+import type { ReactNode } from "react";
 import { BoltIcon, MenuIcon, PluginIcon, PlusIcon, TrashIcon } from "./icons.js";
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -33,6 +34,7 @@ export function Sidebar({
   onCreate,
   onDelete,
   onOpenSettings,
+  footer,
 }: {
   sessions: SessionSummary[];
   activeId?: string;
@@ -45,6 +47,7 @@ export function Sidebar({
   onCreate: () => void;
   onDelete: (id: string) => void;
   onOpenSettings: () => void;
+  footer?: ReactNode;
 }) {
   return (
     <>
@@ -129,6 +132,7 @@ export function Sidebar({
               <PluginIcon size={13} /> {pluginCount} plugins
             </span>
           </div>
+          {footer}
           <button type="button" className="settings-link" onClick={onOpenSettings}>
             Settings &amp; plugins
           </button>

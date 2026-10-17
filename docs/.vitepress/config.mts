@@ -57,6 +57,7 @@ export default defineConfig({
           items: [
             { text: "The plugin system", link: "/guide/plugin-system" },
             { text: "Writing a plugin", link: "/guide/writing-plugins" },
+            { text: "Plugin UI", link: "/guide/plugin-ui" },
             { text: "Skills", link: "/guide/skills" },
             { text: "Subagents", link: "/guide/subagents" },
             { text: "Tools & approvals", link: "/guide/tools" },

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, cp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, cp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +31,44 @@ function host(root: string, options: Partial<ConstructorParameters<typeof Plugin
     host: new PluginHost({ context, logger, directories: [root], ...options }),
   };
 }
+
+async function makeWebPlugin(web: unknown): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "kestrel-plugin-web-"));
+  cleanups.push(() => rm(root, { recursive: true, force: true }));
+  const directory = join(root, "webby");
+  await mkdir(join(directory, "web"), { recursive: true });
+  await writeFile(
+    join(directory, "kestrel.plugin.json"),
+    JSON.stringify({ name: "fixture-web", version: "1.0.0", entry: "index.js", web }),
+  );
+  await writeFile(join(directory, "index.js"), "export default { apply() {} };\n");
+  await writeFile(join(directory, "web", "panel.js"), "export default 1;\n");
+  await writeFile(join(directory, "web", "panel.css"), "");
+  return root;
+}
+
+describe("PluginHost browser contributions", () => {
+  it("resolves an object declaration against web/ and keeps existing css", async () => {
+    const root = await makeWebPlugin({ entry: "panel.js", css: ["panel.css", "missing.css"] });
+    const { host: instance } = host(root);
+    const info = (await instance.discover())[0];
+    expect(info.web).toEqual({ entry: "panel.js", css: ["panel.css"] });
+  });
+
+  it("accepts the string shorthand", async () => {
+    const root = await makeWebPlugin("panel.js");
+    const { host: instance } = host(root);
+    expect((await instance.discover())[0].web).toEqual({ entry: "panel.js" });
+  });
+
+  it("ignores entries that point outside web/ or do not exist", async () => {
+    for (const web of ["../panel.js", { entry: "/etc/passwd" }, { entry: "missing.js" }, 42]) {
+      const root = await makeWebPlugin(web);
+      const { host: instance } = host(root);
+      expect((await instance.discover())[0].web).toBeUndefined();
+    }
+  });
+});
 
 describe("PluginHost discovery", () => {
   it("reads manifests from a directory", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { BootstrapResponse, SessionDetail } from "@kestrel/protocol";
 import type { Connection, KestrelActions } from "../state.js";
 import { CloseIcon, PluginIcon, ShieldIcon, TerminalIcon } from "./icons.js";
@@ -16,6 +16,8 @@ export function SettingsPanel({
   onSaveEndpoint,
   onSignOut,
   actions,
+  extensionSlot,
+  extensionErrors,
 }: {
   open: boolean;
   bootstrap?: BootstrapResponse;
@@ -28,6 +30,8 @@ export function SettingsPanel({
   onSaveEndpoint: (endpoint: string) => void;
   onSignOut: () => void;
   actions: KestrelActions;
+  extensionSlot?: ReactNode;
+  extensionErrors?: { plugin: string; message: string }[];
 }) {
   const [prompt, setPrompt] = useState(detail?.systemPrompt ?? "");
   const [token, setToken] = useState("");
@@ -77,6 +81,21 @@ export function SettingsPanel({
                   Sign out
                 </button>
               )}
+            </section>
+          )}
+
+          {extensionSlot && <section className="settings-section">{extensionSlot}</section>}
+
+          {extensionErrors && extensionErrors.length > 0 && (
+            <section className="settings-section">
+              <h3>Extension errors</h3>
+              <ul className="extension-errors">
+                {extensionErrors.map((error) => (
+                  <li key={error.plugin}>
+                    <strong>{error.plugin}</strong>: {error.message}
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

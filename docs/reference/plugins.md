@@ -54,9 +54,18 @@ interface PluginManifest {
   requires?: string[];            // plugin names
   inject?: string[];              // service keys
   config?: Record<string, unknown>;
-  web?: string;                   // reserved
+  web?: string | PluginWeb;       // browser bundle, see below
+}
+
+interface PluginWeb {
+  entry: string;                  // ESM entry, relative to <plugin>/web
+  css?: string[];                 // stylesheets injected before the module runs
 }
 ```
+
+`web` is shorthand for `{ entry }`. Paths are resolved against `<plugin>/web` and rejected if they
+escape it; entries that do not exist are ignored with a warning, leaving the plugin active without a
+browser bundle. See [Plugin UI](/guide/plugin-ui) for the module contract.
 
 Manifest resolution, in order:
 

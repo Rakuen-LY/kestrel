@@ -147,8 +147,19 @@ export interface PluginManifest {
   inject?: string[];
   /** Default configuration; merged with user configuration. */
   config?: Record<string, unknown>;
-  /** Optional browser asset served by the console. */
-  web?: string;
+  /**
+   * Optional browser bundle served by the console. A string is shorthand for
+   * `{ entry: "web/<string>" }`; paths are relative to the plugin's `web/`
+   * directory.
+   */
+  web?: string | PluginWeb;
+}
+
+export interface PluginWeb {
+  /** ESM module exporting `default (api) => void | Promise<void>`. */
+  entry: string;
+  /** Stylesheets injected before the module runs. */
+  css?: string[];
 }
 
 export interface PluginInfo {
@@ -161,6 +172,8 @@ export interface PluginInfo {
   error?: string;
   source: "builtin" | "local" | "package";
   path?: string;
+  /** Browser contribution, with paths relative to the plugin's `web/` directory. */
+  web?: PluginWeb;
 }
 
 export type SessionEvent =

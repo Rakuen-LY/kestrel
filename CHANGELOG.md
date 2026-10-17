@@ -19,6 +19,11 @@ All notable changes to Kestrel are documented here. The format follows
 - Config: `auth.mode`, `auth.bootstrapToken`, `auth.bootstrapName`, `auth.workspaces`; env
   `KESTREL_AUTH_MODE`, `KESTREL_BOOTSTRAP_TOKEN`.
 - Session summaries carry `tenantId` for non-default tenants.
+- Plugin UI contributions: a manifest's `web` entry (string or `{ entry, css }`) is served from the
+  plugin's `web/` directory at `/plugins/:id/*` for active plugins only. The console imports each
+  bundle and mounts its extensions into `sidebar.footer`, `session.header` and `settings.section`
+  slots; token-bearing requests go through a console helper, and failures are isolated per plugin.
+- `examples/plugins/web-metrics`: an example plugin with a browser bundle.
 
 ### Changed
 

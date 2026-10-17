@@ -105,6 +105,51 @@ This is the cooperation model in practice:
 - The plugin is disposable: when the host unloads it, the tool disappears and the model stops seeing
   it in the next request.
 
+## `web-metrics` — a browser contribution
+
+`examples/plugins/web-metrics` is the only example that touches the console. Its manifest declares a
+bundle:
+
+```json
+{
+  "name": "@example/plugin-web-metrics",
+  "version": "0.1.0",
+  "entry": "index.js",
+  "web": { "entry": "panel.js", "css": ["panel.css"] }
+}
+```
+
+`index.js` provides a `web-metrics` service, and `web/panel.js` registers two extensions:
+
+```js
+export default function activate(api) {
+  const { request } = api.context;
+
+  api.register({
+    id: "sidebar-summary",
+    slot: "sidebar.footer",
+    order: 10,
+    mount(element) {
+      let disposed = false;
+      const render = async () => {
+        const { sessions } = await request("/api/sessions");
+        if (!disposed) element.textContent = `${sessions.length} sessions`;
+      };
+      void render();
+      const timer = setInterval(render, 15000);
+      return () => {
+        disposed = true;
+        clearInterval(timer);
+      };
+    },
+  });
+}
+```
+
+The console imports the bundle from `/plugins/<id>/panel.js` only while the plugin is active, and
+mounts it into the slot. The token stays inside the console: the bundle gets an authenticated
+`request` function, not credentials. Full contract in [Plugin UI](/guide/plugin-ui).
+
 ## Build a third example: a capability that links two services
 
 Plugins can depend on more than one service. This one contributes a tool that reports the models the

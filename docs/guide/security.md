@@ -92,6 +92,18 @@ cannot restrict this. Consequences:
 - The `applyTimeoutMs` guard limits startup hangs, not runtime behaviour.
 - A plugin can register a tool with any permission level, including `auto` for destructive actions.
 
+### Browser bundles
+
+A plugin's `web` bundle is imported into the console's origin and runs with the signed-in user's
+privileges: it can read `localStorage` (including the token), call every API route the user can call
+and modify the page. The console passes an authenticated `request` helper, but that is a
+convenience, not a sandbox.
+
+- Review browser bundles with the same care as server-side plugin code.
+- Assets are public and served only for active plugins; traversal outside `<plugin>/web` is rejected.
+- Bundles must be same-origin with the console; the default CSP blocks third-party script origins.
+- Sandboxed iframes or workers per bundle are a roadmap item, not a current guarantee.
+
 There is no plugin signature or registry yet. That is a roadmap item; until then, review the code.
 
 ## Authentication details

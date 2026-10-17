@@ -105,7 +105,7 @@ export class KestrelApi {
     return headers;
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const response = await fetch(`${this.base}${path}`, {
       ...init,
       headers: this.headers({

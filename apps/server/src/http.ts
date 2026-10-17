@@ -405,6 +405,7 @@ async function serveStatic(
   if (req.method !== "GET" && req.method !== "HEAD") {
     throw new HttpError(405, "method_not_allowed", "Static content is read-only.");
   }
+  if (await servePluginAsset(runtime, req, res, url)) return;
   const root = resolve(runtime.config.server.webRoot ?? resolve(process.cwd(), "apps/web/dist"));
   let pathname: string;
   try {
@@ -451,6 +452,57 @@ async function serveStatic(
     return;
   }
   createReadStream(target).pipe(res);
+}
+
+/**
+ * Serves browser bundles from an active plugin's `web/` directory at
+ * `/plugins/<encoded id>/<path>`. Public like the console itself: the files are
+ * static assets, and anything secret belongs behind the API.
+ */
+async function servePluginAsset(
+  runtime: Runtime,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments[0] !== "plugins") return false;
+  if (segments.length < 3) throw new HttpError(404, "not_found", "Unknown plugin asset.");
+
+  let id: string;
+  let rest: string;
+  try {
+    id = decodeURIComponent(segments[1]);
+    rest = segments.slice(2).map(decodeURIComponent).join("/");
+  } catch {
+    throw new HttpError(400, "bad_path", "Malformed plugin asset path.");
+  }
+
+  const plugin = runtime.plugins
+    .list()
+    .find((item) => item.id === id && item.state === "active" && item.web && item.path);
+  if (!plugin?.web || !plugin.path) throw new HttpError(404, "not_found", "Unknown plugin asset.");
+
+  const root = resolve(plugin.path, "web");
+  const target = resolve(root, rest);
+  if (target !== root && !target.startsWith(root + sep)) {
+    throw new HttpError(403, "forbidden", "Path traversal is not allowed.");
+  }
+
+  const info = await stat(target).catch(() => undefined);
+  if (!info?.isFile()) throw new HttpError(404, "not_found", "Plugin asset not found.");
+
+  res.writeHead(200, {
+    "content-type": MIME[extname(target)] ?? "application/octet-stream",
+    "content-length": info.size,
+    "cache-control": "no-cache",
+  });
+  if (req.method === "HEAD") {
+    res.end();
+    return true;
+  }
+  createReadStream(target).pipe(res);
+  return true;
 }
 
 function applyCors(runtime: Runtime, req: IncomingMessage, res: ServerResponse): void {

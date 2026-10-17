@@ -1792,3 +1792,35 @@ a {
   background: var(--bg-hover);
   border-radius: 5px;
 }
+
+.plugin-extension {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+[data-slot="sidebar.footer"] {
+  margin-bottom: 8px;
+}
+
+[data-slot="session.header"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-slot="settings.section"] h3:first-child {
+  margin-top: 0;
+}
+
+.plugin-extension[data-failed="true"] {
+  color: var(--danger);
+}
+
+.extension-errors {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.6;
+}

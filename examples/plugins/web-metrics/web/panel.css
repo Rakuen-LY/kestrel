@@ -1,0 +1,10 @@
+.web-metrics-note {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+[data-plugin="@example/plugin-web-metrics"] > div {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -226,11 +226,13 @@ mounted into a container:
 
 ## Writing plugins in plain JavaScript
 
-No build step is required. This repository ships two examples:
+No build step is required. This repository ships three examples:
 
 - `examples/plugins/echo-model` — registers a deterministic offline model.
 - `examples/plugins/clock-tool` — injects `tools` and contributes one tool, without importing the
   tools plugin.
+- `examples/plugins/web-metrics` — adds a browser bundle that renders in the console sidebar and
+  settings drawer. See [Plugin UI](/guide/plugin-ui).
 
 Both are under a hundred lines and are loaded by `KESTREL_PLUGINS=plugins,examples/plugins`. They
 are the fastest way to see service injection in action.

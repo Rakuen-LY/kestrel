@@ -4,10 +4,12 @@ import { ApprovalDialog } from "./components/ApprovalDialog.js";
 import { Composer } from "./components/Composer.js";
 import { MessageBubble } from "./components/MessageBubble.js";
 import { LoginScreen } from "./components/LoginScreen.js";
+import { PluginSlot } from "./components/PluginSlot.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { ToolCallCard } from "./components/ToolCall.js";
 import { BoltIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
+import { usePluginExtensions } from "./extensions.js";
 import { useKestrel } from "./state.js";
 import { readToken, writeEndpoint, writeToken } from "./api.js";
 
@@ -89,6 +91,7 @@ export default function App() {
     if (nearBottom || state.busy) element.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [state.busy, state.detail?.messages.length, state.streaming?.content.length, calls.length]);
 
+  const { extensions, errors: extensionErrors } = usePluginExtensions(state.bootstrap, api);
   const modelOptions = state.bootstrap?.models ?? [];
   const pluginCount = state.bootstrap?.plugins.length ?? 0;
   const approval = state.approvals[0];
@@ -122,6 +125,7 @@ export default function App() {
           setSettingsOpen(true);
           setSidebarOpen(false);
         }}
+        footer={<PluginSlot slot="sidebar.footer" extensions={extensions} api={api} />}
       />
 
       <main className="main">
@@ -149,6 +153,7 @@ export default function App() {
             )}
           </div>
           <div className="topbar-actions">
+            <PluginSlot slot="session.header" extensions={extensions} api={api} sessionId={state.activeId} />
             {state.detail && modelOptions.length > 0 && (
               <label className="model-picker" title="Model for this session">
                 <BoltIcon size={14} />
@@ -271,6 +276,8 @@ export default function App() {
           writeEndpoint(endpoint);
           window.location.reload();
         }}
+        extensionSlot={<PluginSlot slot="settings.section" extensions={extensions} api={api} />}
+        extensionErrors={extensionErrors}
         onSignOut={() => {
           actions.signOut();
           setSettingsOpen(false);

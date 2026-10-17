@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context, PluginDefinition, PluginHandle, Logger } from "@kestrel/kernel";
-import type { PluginInfo, PluginManifest } from "@kestrel/protocol";
+import type { PluginInfo, PluginManifest, PluginWeb } from "@kestrel/protocol";
 
 interface DiscoveredPlugin {
   manifest: PluginManifest;
@@ -77,9 +77,11 @@ export class PluginHost implements PluginService {
     }
 
     for (const explicit of this.options.entries ?? []) {
+      const directory = resolve(explicit.entry, "..");
+      const web = await this.webFor(explicit.manifest, directory);
       this.add({
         manifest: explicit.manifest,
-        directory: resolve(explicit.entry, ".."),
+        directory,
         entry: resolve(explicit.entry),
         source: explicit.source ?? "local",
         info: {
@@ -91,6 +93,7 @@ export class PluginHost implements PluginService {
           dependencies: [...(explicit.manifest.requires ?? [])],
           source: explicit.source ?? "local",
           path: explicit.entry,
+          web,
         },
       });
     }
@@ -240,8 +243,39 @@ export class PluginHost implements PluginService {
         dependencies: [...(manifest.requires ?? [])],
         source,
         path: directory,
+        web: await this.webFor(manifest, directory),
       },
     };
+  }
+
+  /**
+   * Resolves `web` against `<directory>/web`, dropping entries that escape the
+   * directory or do not exist. A broken browser bundle must not fail the
+   * plugin: the server side is still useful without it.
+   */
+  private async webFor(manifest: PluginManifest, directory: string): Promise<PluginWeb | undefined> {
+    if (!manifest.web) return undefined;
+    const declared = typeof manifest.web === "string" ? { entry: manifest.web } : manifest.web;
+    const root = join(directory, "web");
+    const entry = relativeAsset(declared.entry);
+    if (!entry) {
+      this.options.logger.warn("plugin web entry is not inside web/", { plugin: manifest.name });
+      return undefined;
+    }
+    if (!(await exists(join(root, entry)))) {
+      this.options.logger.warn("plugin web entry not found", { plugin: manifest.name, entry });
+      return undefined;
+    }
+    const css: string[] = [];
+    for (const candidate of declared.css ?? []) {
+      const asset = relativeAsset(candidate);
+      if (!asset || !(await exists(join(root, asset)))) {
+        this.options.logger.warn("plugin web asset not found", { plugin: manifest.name, asset: candidate });
+        continue;
+      }
+      css.push(asset);
+    }
+    return css.length > 0 ? { entry, css } : { entry };
   }
 
   private checkAllowed(): void {
@@ -307,6 +341,14 @@ export class PluginHost implements PluginService {
     const error = handle?.snapshot().error ?? plugin.info.error;
     return { ...plugin.info, state, error };
   }
+}
+
+function relativeAsset(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) return undefined;
+  if (normalized.split("/").includes("..")) return undefined;
+  return normalized;
 }
 
 function toDefinition(module: Record<string, unknown>, manifest: PluginManifest): PluginDefinition {

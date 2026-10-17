@@ -16,6 +16,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Core filesystem, search, shell, fetch, todo and finish tools | Done |
 | Memory tools and Model Context Protocol bridge | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
+| Plugin UI contributions: browser bundles rendered in console slots | Done |
 | Accounts, roles and tenant isolation (`auth.mode: "accounts"`) | Done |
 | CLI: serve, run, chat, plugins, models, sessions | Done |
 | Docker, Compose, Kubernetes, systemd, launchd, Windows Task | Done |
@@ -30,16 +31,16 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 - Browser tests for the console against a scripted backend.
 - Automated release workflow with signed tags and changelog generation.
 
-### 2. Plugin UI contributions
+### 2. Plugin UI hardening
 
-The manifest already reserves `web`. The plan:
+Bundles now load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
+plugin's `web/` directory. Remaining work:
 
-- The host serves `/plugins/:name/*` from a plugin directory.
-- The console exposes a slot registry (sidebar, message renderer, settings panel).
-- UI bundles are plain ESM with a tiny `registerConsoleExtension()` contract, loaded sandboxed in an
-  iframe or module worker depending on capability.
+- Sandbox bundles in an iframe or module worker, with an explicit capability list.
+- More slots: message renderer, composer actions, file viewer.
+- A dev channel that reloads a bundle without a page refresh.
 
-This keeps "everything is a plugin" true for the interface, not only the backend.
+See [Plugin UI](/guide/plugin-ui).
 
 ### 3. Durable stores and multi-process operation
 
