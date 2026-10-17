@@ -41,7 +41,7 @@ console files are public; the API they call is not.
 | `DELETE` | `/api/users/:id` | Delete a user (admin only). |
 | `GET` | `/api/tenants` | Tenants (admin only). |
 | `POST` | `/api/tenants` | Create a tenant (admin only). |
-| `GET` | `/api/sessions` | Session summaries, scoped to the caller's tenant. |
+| `GET` | `/api/sessions` | Session summaries with cumulative `usage`, scoped to the caller's tenant. |
 | `POST` | `/api/sessions` | Create a session. |
 | `GET` | `/api/sessions/:id` | Session detail, including the transcript. |
 | `PATCH` | `/api/sessions/:id` | Rename, change model or system prompt while idle. |
@@ -51,6 +51,7 @@ console files are public; the API they call is not.
 | `GET` | `/api/events` | SSE stream for every session the caller may see. |
 | `POST` | `/api/sessions/:id/cancel` | Abort the active run. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | Approve or decline a tool call. |
+| `GET` | `/api/usage` | Session count and cumulative tokens, scoped to the caller's tenant. |
 
 ### Create a session
 
@@ -142,7 +143,7 @@ data: {"seq":42,"at":"2026-01-01T10:00:03.120Z","event":{"type":"message.delta",
 | `tool.finished` | Result, duration, error flag and optional structured `data`. |
 | `approval.requested` | Call, reason and approval id. |
 | `approval.resolved` | Decision. |
-| `run.finished` | Terminal status (`completed`, `cancelled`, `max_steps`) and accumulated usage. |
+| `run.finished` | Terminal status (`completed`, `cancelled`, `max_steps`) and usage for that run. |
 | `run.failed` | Error message; the session is marked `error`. |
 | `session.deleted` | The session no longer exists. |
 | `plugin.changed` | A plugin changed state at runtime. |

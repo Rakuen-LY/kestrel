@@ -138,6 +138,10 @@ never contains agent logic.
   workspace read-write at the same absolute path, run with the server UID on POSIX, and default to
   `--network none`. Killing the Docker CLI does not stop a container, so timeouts and aborts run
   `docker rm -f <name>` as well.
+- Token usage is cumulative per session in `AgentSession._usage`; it is updated right after every
+  model and compaction response (not in `finally`) so the final `session.updated` and persisted
+  `detail()` already include the run that just finished. `SessionManager.sessionOptions` must
+  forward `usage` on restore or histories reload with zero tokens.
 - Triggers (`plugins/triggers`) are in-process: cron uses five UTC fields with OR semantics for
   day-of-month/day-of-week, fires at most once per minute, skips overlapping runs and never catches
   up after downtime. Webhook secrets expand `${ENV}`; a public hook without a secret is refused.

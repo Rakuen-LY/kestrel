@@ -1,4 +1,5 @@
 import type { SessionSummary } from "@kestrel/protocol";
+import { formatTokens } from "../format.js";
 import type { Connection } from "../state.js";
 import type { ReactNode } from "react";
 import { BoltIcon, MenuIcon, PluginIcon, PlusIcon, TrashIcon } from "./icons.js";
@@ -106,6 +107,7 @@ export function Sidebar({
                       ? "interrupted"
                       : ago(session.updatedAt)}{" "}
                   · {session.messageCount} msg
+                  {session.usage ? ` · ${formatTokens(session.usage.totalTokens)} tok` : ""}
                 </span>
               </div>
               {session.status === "running" && <span className="dot live" />}

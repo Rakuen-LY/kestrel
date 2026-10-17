@@ -344,6 +344,34 @@ describe("HTTP API", () => {
     expect(events).toContain("run.finished");
   });
 
+  it("reports cumulative token usage", async () => {
+    const harness = await boot({
+      turns: [
+        { content: "one", usage: { inputTokens: 100, outputTokens: 20 } },
+        { content: "two", usage: { inputTokens: 50, outputTokens: 5 } },
+      ],
+    });
+    const id = await createSession(harness);
+    for (const content of ["first", "second"]) {
+      const sent = await fetch(`${harness.base}/api/sessions/${id}/messages`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ content }),
+      });
+      expect(sent.status).toBe(202);
+      await waitForIdle(harness, id);
+    }
+    const detail = await fetch(`${harness.base}/api/sessions/${id}`, { headers: headers() });
+    const session = ((await detail.json()) as { session: { usage: { totalTokens: number } } }).session;
+    expect(session.usage.totalTokens).toBe(175);
+    const totals = await fetch(`${harness.base}/api/usage`, { headers: headers() });
+    expect(totals.status).toBe(200);
+    expect(await totals.json()).toMatchObject({
+      sessions: 1,
+      running: 0,
+      usage: { inputTokens: 150, outputTokens: 25, totalTokens: 175 },
+    });
+  });
   it("pauses for approval and resumes the run", async () => {
     const approvalTool: Tool = {
       schema: {

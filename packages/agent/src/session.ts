@@ -90,6 +90,7 @@ export class AgentSession {
   private _model: string;
   private _systemPrompt: string;
   private _status: SessionStatus = "idle";
+  private _usage: Usage;
   private _updatedAt: string;
   private activeRun?: ActiveRun;
 
@@ -100,6 +101,7 @@ export class AgentSession {
     this._model = options.model;
     this._systemPrompt = options.systemPrompt;
     this._status = options.status ?? "idle";
+    this._usage = options.usage ?? emptyUsage();
     this.workspace = options.workspace;
     this.parentId = options.parentId;
     this.depth = options.depth ?? 0;
@@ -139,6 +141,10 @@ export class AgentSession {
     return this._updatedAt;
   }
 
+  get usage(): Usage {
+    return { ...this._usage };
+  }
+
   get messages(): readonly ChatMessage[] {
     return this.messageList;
   }
@@ -167,6 +173,7 @@ export class AgentSession {
       workspace: this.workspace,
       ...(this.parentId ? { parentId: this.parentId, depth: this.depth, role: this.role } : {}),
       ...(this.tenantId && this.tenantId !== "default" ? { tenantId: this.tenantId } : {}),
+      ...(this._usage.totalTokens > 0 ? { usage: { ...this._usage } } : {}),
     };
   }
 
@@ -311,7 +318,9 @@ export class AgentSession {
         this.throwIfCancelled(controller.signal);
         steps += 1;
         const model = this.options.models.get(this._model);
-        usage = addUsage(usage, await this.maybeCompact(model, controller.signal));
+        const compacted = await this.maybeCompact(model, controller.signal);
+        usage = addUsage(usage, compacted);
+        this._usage = addUsage(this._usage, compacted);
 
         const draft = assistantMessage("");
         this.emit({ type: "message.started", sessionId: this.id, message: { ...draft } });
@@ -351,6 +360,7 @@ export class AgentSession {
         };
         this.messageList.push(assistant);
         usage = addUsage(usage, response.usage);
+        this._usage = addUsage(this._usage, response.usage);
         this.emit({ type: "message.completed", sessionId: this.id, message: { ...assistant } });
         this._updatedAt = new Date().toISOString();
         this.persist();

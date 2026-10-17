@@ -12,7 +12,15 @@ export { defaultSystemPrompt, compactSystemPrompt, subagentSystemPrompt } from "
 export type { SubagentPromptOptions } from "./prompt.js";
 export { PromptPipeline } from "./prompts.js";
 export type { PromptContext, PromptLayer, PromptPipelineOptions } from "./prompts.js";
-export { createMessage, assistantMessage, toolMessage, estimateTokens, titleFromInput } from "./messages.js";
+export {
+  addUsage,
+  createMessage,
+  assistantMessage,
+  emptyUsage,
+  estimateTokens,
+  titleFromInput,
+  toolMessage,
+} from "./messages.js";
 export type {
   AgentSessionOptions,
   ApprovalHandler,

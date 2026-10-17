@@ -111,6 +111,8 @@ export interface AgentSessionOptions {
   messages?: ChatMessage[];
   /** Persisted status, so an interrupted or failed session stays resumable after a restart. */
   status?: import("@kestrel/protocol").SessionStatus;
+  /** Cumulative usage restored from persistence. */
+  usage?: Usage;
   createdAt?: string;
   updatedAt?: string;
   maxSteps?: number;

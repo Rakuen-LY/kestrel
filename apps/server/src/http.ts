@@ -13,7 +13,7 @@ import {
   type PluginHttpRequest,
   type SendMessageRequest,
 } from "@kestrel/protocol";
-import { SessionNotFoundError } from "@kestrel/agent";
+import { addUsage, emptyUsage, SessionNotFoundError } from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
 import { CheckpointError } from "./checkpoints.js";
@@ -242,6 +242,18 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
 
   if (url.pathname === "/api/plugins" && method === "GET") {
     json(res, 200, { plugins: runtime.plugins.list() });
+    return;
+  }
+
+  if (url.pathname === "/api/usage" && method === "GET") {
+    const scope = principal.role === "admin" ? undefined : principal.tenantId;
+    const sessions = runtime.sessions.list(scope);
+    const usage = sessions.reduce((total, session) => (session.usage ? addUsage(total, session.usage) : total), emptyUsage());
+    json(res, 200, {
+      sessions: sessions.length,
+      running: sessions.filter((session) => session.status === "running").length,
+      usage,
+    });
     return;
   }
 

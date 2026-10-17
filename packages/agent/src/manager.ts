@@ -224,6 +224,7 @@ export class SessionManager {
         depth: detail.depth,
         role: detail.role,
         status: detail.status,
+        usage: detail.usage,
       }),
       messages: detail.messages,
       createdAt: detail.createdAt,
@@ -244,6 +245,7 @@ export class SessionManager {
     depth?: number;
     role?: string;
     status?: ConstructorParameters<typeof AgentSession>[0]["status"];
+    usage?: ConstructorParameters<typeof AgentSession>[0]["usage"];
     maxSteps?: number;
     allowTools?: readonly string[];
   }): ConstructorParameters<typeof AgentSession>[0] {
@@ -259,6 +261,7 @@ export class SessionManager {
       depth: input.depth,
       role: input.role,
       status: input.status,
+      usage: input.usage,
       allowTools: input.allowTools,
       maxSteps: input.maxSteps ?? this.options.maxSteps,
       temperature: this.options.temperature,

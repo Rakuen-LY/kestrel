@@ -13,6 +13,7 @@ import { BoltIcon, HistoryIcon, MenuIcon, PenIcon, SettingsIcon } from "./compon
 import { usePluginExtensions } from "./extensions.js";
 import { useKestrel } from "./state.js";
 import { readToken, writeEndpoint, writeToken } from "./api.js";
+import { formatTokens } from "./format.js";
 
 const SUGGESTIONS = [
   "Map this repository and explain its architecture.",
@@ -149,7 +150,9 @@ export default function App() {
                     <span className="dot live" /> running
                   </span>
                 ) : (
-                  state.detail.messageCount + " messages"
+                  state.detail.messageCount +
+                  " messages" +
+                  (state.detail.usage ? ` · ${formatTokens(state.detail.usage.totalTokens)} tokens` : "")
                 )}
               </span>
             )}

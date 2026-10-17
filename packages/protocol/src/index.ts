@@ -107,6 +107,8 @@ export interface SessionSummary {
   role?: string;
   /** Owning tenant. Omitted for the default tenant, so v0.1 payloads are unchanged. */
   tenantId?: string;
+  /** Tokens consumed by every run in this session. Omitted before the first run. */
+  usage?: Usage;
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -320,6 +322,7 @@ export const ENDPOINTS = {
   approval: (sessionId: string, approvalId: string) =>
     `/api/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,
   plugins: "/api/plugins",
+  usage: "/api/usage",
 } as const;
 
 /**

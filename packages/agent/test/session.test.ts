@@ -217,6 +217,7 @@ describe("Persistence", () => {
     const restored = second.get(session.id);
     expect(restored.title).toBe("Stored");
     expect(restored.messages.at(-1)?.content).toBe("persisted");
+    expect(restored.summary().usage?.totalTokens).toBe(15);
     await second.delete(session.id);
     expect(await store.list()).toHaveLength(0);
   });
