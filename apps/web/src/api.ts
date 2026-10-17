@@ -205,6 +205,10 @@ export class KestrelApi {
     });
   }
 
+  resume(id: string): Promise<{ runId: string }> {
+    return this.request(`/api/sessions/${encodeURIComponent(id)}/resume`, { method: "POST" });
+  }
+
   cancel(id: string): Promise<{ cancelled: boolean }> {
     return this.request(`/api/sessions/${encodeURIComponent(id)}/cancel`, { method: "POST" });
   }

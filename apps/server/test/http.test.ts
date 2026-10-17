@@ -448,6 +448,37 @@ describe("HTTP API", () => {
     expect(empty.status).toBe(400);
   });
 
+  it("resumes an interrupted run over HTTP", async () => {
+    const harness = await boot({ turns: [{ content: "first answer" }, { content: "after resume" }] });
+    const id = await createSession(harness);
+    const sent = await fetch(`${harness.base}/api/sessions/${id}/messages`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ content: "start" }),
+    });
+    expect(sent.status).toBe(202);
+    await waitForIdle(harness, id);
+
+    const idleResume = await fetch(`${harness.base}/api/sessions/${id}/resume`, {
+      method: "POST",
+      headers: headers(),
+    });
+    expect(idleResume.status).toBe(409);
+    expect(((await idleResume.json()) as { error: { code: string } }).error.code).toBe("not_resumable");
+
+    harness.runtime.sessions.get(id).markInterrupted();
+    const resumed = await fetch(`${harness.base}/api/sessions/${id}/resume`, {
+      method: "POST",
+      headers: headers(),
+    });
+    expect(resumed.status).toBe(202);
+    expect(((await resumed.json()) as { runId: string }).runId).toBeTruthy();
+
+    const detail = await waitForIdle(harness, id);
+    const contents = (detail.messages as Array<{ content: string }>).map((message) => message.content);
+    expect(contents).toEqual(["start", "first answer", "after resume"]);
+  });
+
   it("requires a token for session-scoped streams", async () => {
     const harness = await boot();
     const id = await createSession(harness);

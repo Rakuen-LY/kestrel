@@ -298,7 +298,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     throw new HttpError(405, "method_not_allowed", "Checkpoints support GET and POST.");
   }
 
-  const sessionMatch = /^\/api\/sessions\/([^/]+)(?:\/(messages|events|cancel))?$/.exec(url.pathname);
+  const sessionMatch = /^\/api\/sessions\/([^/]+)(?:\/(messages|events|cancel|resume))?$/.exec(url.pathname);
   if (sessionMatch) {
     const id = decodeURIComponent(sessionMatch[1]);
     const action = sessionMatch[2];
@@ -366,6 +366,19 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     if (action === "cancel" && method === "POST") {
       const cancelled = runtime.sessions.cancel(id);
       json(res, 200, { cancelled });
+      return;
+    }
+    if (action === "resume" && method === "POST") {
+      if (session.isRunning) throw new HttpError(409, "session_busy", "This session already has an active run.");
+      if (session.status !== "interrupted" && session.status !== "error") {
+        throw new HttpError(409, "not_resumable", "Only interrupted or failed sessions can be resumed.");
+      }
+      await snapshotBeforeRun(runtime, session, "Resume interrupted run");
+      const { runId, done } = session.resume();
+      done.catch((error: unknown) => {
+        runtime.logger.error("run rejected", { sessionId: id, runId, error: String(error) });
+      });
+      json(res, 202, { runId });
       return;
     }
     throw new HttpError(405, "method_not_allowed", `Method ${method} is not supported here.`);

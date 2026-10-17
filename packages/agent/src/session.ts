@@ -99,6 +99,7 @@ export class AgentSession {
     this._title = options.title;
     this._model = options.model;
     this._systemPrompt = options.systemPrompt;
+    this._status = options.status ?? "idle";
     this.workspace = options.workspace;
     this.parentId = options.parentId;
     this.depth = options.depth ?? 0;
@@ -215,6 +216,42 @@ export class AgentSession {
     this.messageList.push(userMessage);
     this.emit({ type: "message.completed", sessionId: this.id, message: { ...userMessage } });
 
+    return this.launchRun();
+  }
+
+  /**
+   * Continue a run that did not survive the server process. Pending tool calls
+   * are answered without re-executing them: a side effect may already have
+   * happened, so the model is told to verify rather than retry blindly.
+   */
+  resume(): { runId: string; done: Promise<RunResult> } {
+    if (this.activeRun) throw new Error("This session already has an active run.");
+    if (this._status !== "interrupted" && this._status !== "error") {
+      throw new Error("Only interrupted or failed sessions can be resumed.");
+    }
+    if (this.messageList.length === 0) throw new Error("This session has no messages to resume.");
+    const repaired = this.repairPendingToolCalls();
+    if (repaired > 0) {
+      this.emit({
+        type: "notice",
+        level: "warn",
+        message: `Recovered ${repaired} tool call(s) from the interrupted run; they were not executed again.`,
+      });
+      this._updatedAt = new Date().toISOString();
+      this.persist();
+    }
+    return this.launchRun();
+  }
+
+  /** Marks a session whose persisted state says "running" but has no live run. */
+  markInterrupted(): void {
+    if (this.activeRun) return;
+    this._status = "interrupted";
+    this._updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  private launchRun(): { runId: string; done: Promise<RunResult> } {
     const runId = crypto.randomUUID();
     const controller = new AbortController();
     this._status = "running";
@@ -228,6 +265,26 @@ export class AgentSession {
     const done = this.execute(runId, controller);
     this.activeRun = { id: runId, controller, done };
     return { runId, done };
+  }
+
+  private repairPendingToolCalls(): number {
+    const answered = new Set(this.messageList.map((message) => message.toolCallId).filter(Boolean));
+    const repaired: ToolCall[] = [];
+    for (const message of this.messageList) {
+      for (const call of message.toolCalls ?? []) {
+        if (!answered.has(call.id)) repaired.push(call);
+      }
+    }
+    for (const call of repaired) {
+      this.messageList.push(
+        toolMessage(
+          call,
+          "Error: the previous run was interrupted before this tool's result was recorded. " +
+            "It may or may not have executed; verify the workspace state before retrying.",
+        ),
+      );
+    }
+    return repaired.length;
   }
 
   cancel(): boolean {

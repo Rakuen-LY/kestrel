@@ -86,6 +86,10 @@ never contains agent logic.
 
 - `apps/server/src/main.ts` exports `main()`; only `src/bin.ts` is an executable entry. Do not add a
   `pathToFileURL` self-start guard to `main.ts` — the CLI imports it and would boot twice.
+- Session status is part of the persisted document. `SessionManager.initialize()` rewrites
+  `running` to `interrupted`; `AgentSession.resume()` requires that status (or `error`) and answers
+  orphaned tool calls with an error result rather than executing them again. Do not "helpfully"
+  replay pending tools.
 - `FileSessionStore` writes `sessions/<id>/session.json`; sessions are not safe for multi-process
   writers. `SessionManager.close()` calls `store.flush()`, so shutdown cannot race an in-flight
   write — keep that barrier when adding a store.

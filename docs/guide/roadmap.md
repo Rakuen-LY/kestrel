@@ -48,9 +48,11 @@ See [Plugin UI](/guide/plugin-ui).
 
 ### 3. Durable stores and multi-process operation
 
-- SQLite `SessionStore` as the default for single-node installs.
+- ~~SQLite `SessionStore`~~ — opt-in today via `storage.driver: "sqlite"`; default
+  switch is deferred until migrations are exercised in the field.
 - Postgres store and a shared event bus (Redis or NATS) as opt-ins.
-- Resumable runs after a crash: persist the in-flight step and re-enter the loop.
+- ~~Resumable runs after a crash~~ — shipped: persisted `running` sessions become
+  `interrupted` on boot and resume from the transcript without replaying tools.
 
 ### 4. Sandbox backends
 

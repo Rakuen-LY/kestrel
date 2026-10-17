@@ -88,7 +88,7 @@ export interface Usage {
   reasoningTokens?: number;
 }
 
-export type SessionStatus = "idle" | "running" | "error" | "cancelled";
+export type SessionStatus = "idle" | "running" | "interrupted" | "error" | "cancelled";
 
 export interface SessionSummary {
   id: string;

@@ -70,7 +70,9 @@ export class SessionManager {
     for (const summary of summaries) {
       const detail = await this.options.store.load(summary.id, summary.tenantId);
       if (!detail) continue;
-      this.instantiate(detail);
+      const session = this.instantiate(detail);
+      // A `running` status with no live run means the process died mid-run.
+      if (detail.status === "running") session.markInterrupted();
     }
     this.options.logger.info("sessions restored", { count: this.sessions.size });
   }
@@ -189,6 +191,10 @@ export class SessionManager {
     return this.get(id).cancel();
   }
 
+  resume(id: string): { runId: string; done: Promise<RunResult> } {
+    return this.get(id).resume();
+  }
+
   async delete(id: string): Promise<void> {
     const session = this.get(id);
     session.cancel();
@@ -217,6 +223,7 @@ export class SessionManager {
         parentId: detail.parentId,
         depth: detail.depth,
         role: detail.role,
+        status: detail.status,
       }),
       messages: detail.messages,
       createdAt: detail.createdAt,
@@ -236,6 +243,7 @@ export class SessionManager {
     parentId?: string;
     depth?: number;
     role?: string;
+    status?: ConstructorParameters<typeof AgentSession>[0]["status"];
     maxSteps?: number;
     allowTools?: readonly string[];
   }): ConstructorParameters<typeof AgentSession>[0] {
@@ -250,6 +258,7 @@ export class SessionManager {
       parentId: input.parentId,
       depth: input.depth,
       role: input.role,
+      status: input.status,
       allowTools: input.allowTools,
       maxSteps: input.maxSteps ?? this.options.maxSteps,
       temperature: this.options.temperature,

@@ -155,6 +155,17 @@ export default function App() {
             )}
           </div>
           <div className="topbar-actions">
+            {state.detail && (state.detail.status === "interrupted" || state.detail.status === "error") && (
+              <button
+                type="button"
+                className="button small primary"
+                onClick={() => void actions.resume()}
+                disabled={state.busy}
+                title="Continue the run that was interrupted"
+              >
+                Resume
+              </button>
+            )}
             <PluginSlot slot="session.header" extensions={extensions} api={api} sessionId={state.activeId} />
             {state.detail && modelOptions.length > 0 && (
               <label className="model-picker" title="Model for this session">

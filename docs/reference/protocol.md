@@ -20,6 +20,7 @@ mobile client. The server, console and CLI all use these types.
 | `DELETE` | `/api/sessions/:id` | `204` | Removes the transcript. |
 | `POST` | `/api/sessions/:id/messages` | `202 { runId }` | Body `SendMessageRequest`; text, images or both. |
 | `POST` | `/api/sessions/:id/cancel` | `200 { cancelled: boolean }` | Idempotent. |
+| `POST` | `/api/sessions/:id/resume` | `202 { runId }` | Continues an `interrupted` or `error` session; `409 not_resumable` otherwise. |
 | `GET` | `/api/sessions/:id/events` | `200 text/event-stream` | Session-scoped stream. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | `200 { resolved: true }` | Body `{ "approved": boolean, "note"?: string }`. |
 | `GET` | `/api/sessions/:id/checkpoints` | `200 CheckpointListResponse` | `enabled`, optional `reason`, `checkpoints[]`. |
@@ -258,7 +259,7 @@ interface SessionSummary {
   title: string;
   createdAt: string;
   updatedAt: string;
-  status: "idle" | "running" | "error" | "cancelled";
+  status: "idle" | "running" | "interrupted" | "error" | "cancelled";
   model: string;
   messageCount: number;
   workspace: string;
@@ -269,6 +270,16 @@ interface SessionDetail extends SessionSummary {
   systemPrompt?: string;
 }
 ```
+
+### Interrupted runs
+
+A session is persisted as `running` while a run is in flight. If the server
+stops abruptly, the next boot rewrites that status to `interrupted`, and
+`POST /api/sessions/:id/resume` re-enters the loop from the stored transcript.
+Tool calls that had no recorded result are answered with an error result
+instead of being executed again, because a side effect may already have
+happened: the model is told to verify the workspace before retrying. Failed
+runs (`error`) can be resumed the same way.
 
 ## Authentication
 

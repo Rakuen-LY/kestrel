@@ -24,7 +24,7 @@ Usage:
   kestrel chat [--model M] [--workspace DIR]
   kestrel plugins
   kestrel models
-  kestrel sessions
+  kestrel sessions [resume <id>]
   kestrel skills [show <name>]
   kestrel checkpoints [list <session>] [create <session> [--label L]]
                       [restore <session> <checkpoint>]
@@ -323,6 +323,32 @@ async function main(): Promise<void> {
   if (command === "sessions") {
     const runtime = await createRuntime({ configPath: values.config as string | undefined });
     try {
+      if (positionals[1] === "resume") {
+        const id = positionals[2];
+        if (!id) {
+          stdout.write("Usage: kestrel sessions resume <id>\n");
+          process.exitCode = 2;
+          return;
+        }
+        const session = runtime.sessions.get(id);
+        const print = createPrinter(false);
+        const unsubscribe = runtime.sessions.subscribe((event) => {
+          if (!("sessionId" in event) || event.sessionId !== session.id) return;
+          const text = print(event);
+          if (text) stdout.write(text);
+        });
+        try {
+          await snapshotBefore(runtime, session, "Resume interrupted run");
+          await session.resume().done;
+          stdout.write("\n");
+        } catch (error) {
+          stdout.write(color.red(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
+          process.exitCode = 1;
+        } finally {
+          unsubscribe();
+        }
+        return;
+      }
       for (const session of runtime.sessions.list()) {
         const indent = "  ".repeat(session.depth ?? 0);
         const marker = session.depth ? `${color.dim("↳ ")}` : "";

@@ -109,6 +109,8 @@ export interface AgentSessionOptions {
   /** Owning tenant; `undefined` means the default tenant. */
   tenantId?: string;
   messages?: ChatMessage[];
+  /** Persisted status, so an interrupted or failed session stays resumable after a restart. */
+  status?: import("@kestrel/protocol").SessionStatus;
   createdAt?: string;
   updatedAt?: string;
   maxSteps?: number;

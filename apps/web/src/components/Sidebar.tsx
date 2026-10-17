@@ -100,7 +100,12 @@ export function Sidebar({
                 </span>
                 <span className="session-meta">
                   {session.role && <span className="role-chip">{session.role}</span>}
-                  {session.status === "running" ? "running" : ago(session.updatedAt)} · {session.messageCount} msg
+                  {session.status === "running"
+                    ? "running"
+                    : session.status === "interrupted"
+                      ? "interrupted"
+                      : ago(session.updatedAt)}{" "}
+                  · {session.messageCount} msg
                 </span>
               </div>
               {session.status === "running" && <span className="dot live" />}

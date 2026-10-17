@@ -8,6 +8,12 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Resumable runs: a session persisted as `running` becomes `interrupted` on boot, and
+  `POST /api/sessions/:id/resume` (or `kestrel sessions resume <id>`, or the console's Resume
+  button) re-enters the loop from the stored transcript. Pending tool calls are answered with an
+  error result instead of being replayed.
+- SQLite session store: `storage.driver: "sqlite"` keeps transcripts and summaries in one WAL
+  database via the built-in `node:sqlite`, with the same `SessionStore` contract as the JSON store.
 - Accounts and tenants: `auth.mode: "accounts"` adds per-user bearer tokens, `admin`/`member` roles
   and tenant isolation for sessions, storage, workspaces and event streams. `none` and `token` keep
   the single-operator behaviour and remain the default.

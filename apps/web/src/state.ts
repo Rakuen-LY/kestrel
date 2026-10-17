@@ -193,6 +193,7 @@ export interface KestrelActions {
   createSession(input?: { title?: string }): Promise<string | undefined>;
   send(content: string, images?: ImageAttachment[]): Promise<void>;
   cancel(): Promise<void>;
+  resume(): Promise<void>;
   remove(id: string): Promise<void>;
   rename(id: string, title: string): Promise<void>;
   setModel(model: string): Promise<void>;
@@ -337,6 +338,17 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
         if (!activeRef.current) return;
         try {
           await api.cancel(activeRef.current);
+        } catch (error) {
+          fail(error);
+        }
+      },
+      async resume() {
+        const id = activeRef.current;
+        if (!id) return;
+        try {
+          await api.resume(id);
+          const { session } = await api.getSession(id);
+          dispatch({ type: "detail", detail: session });
         } catch (error) {
           fail(error);
         }
