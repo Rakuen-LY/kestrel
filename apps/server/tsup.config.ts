@@ -8,4 +8,6 @@ export default defineConfig({
   clean: true,
   banner: { js: "#!/usr/bin/env node" },
   noExternal: [/^@kestrel\//],
+  // tsup strips `node:` by default, which turns `node:sqlite` into a package lookup.
+  removeNodeProtocol: false,
 });

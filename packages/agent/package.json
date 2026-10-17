@@ -17,7 +17,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

@@ -4,6 +4,7 @@ export { AgentSession } from "./session.js";
 export { SessionManager, SessionNotFoundError } from "./manager.js";
 export type { SessionManagerOptions } from "./manager.js";
 export { FileSessionStore, MemorySessionStore } from "./store.js";
+export { SqliteSessionStore } from "./store-sqlite.js";
 export type { SessionStore } from "./store.js";
 export { ModelRegistry, ToolRegistry, validateArguments, formatValidationIssues } from "./registry.js";
 export { defaultSystemPrompt, compactSystemPrompt, subagentSystemPrompt } from "./prompt.js";

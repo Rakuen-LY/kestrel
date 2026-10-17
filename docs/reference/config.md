@@ -41,7 +41,7 @@ Precedence: defaults → configuration file → environment variables → comman
       }
     }
   },
-  "storage": { "directory": ".kestrel" },
+  "storage": { "directory": ".kestrel", "driver": "file" },
   "auth": {
     "mode": "token",
     "bootstrapToken": "",
@@ -116,10 +116,18 @@ resolve outside the workspace are ignored.
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `directory` | string | `.kestrel` | Data root: sessions, accounts and per-tenant workspaces. |
+| `driver` | `"file"` \| `"sqlite"` | `file` | How transcripts are stored. See below. |
 
-Transcripts live in `<directory>/sessions` for the default tenant and
+With the `file` driver, transcripts live in `<directory>/sessions` for the default tenant and
 `<directory>/tenants/<tenantId>/sessions` for every other tenant. Accounts live in
 `<directory>/auth/accounts.json`.
+
+With the `sqlite` driver, every session lives in `<directory>/kestrel.db` (plus `-wal`/`-shm`
+sidecars). It uses Node's built-in SQLite, so there is nothing to compile, and listing sessions does
+not parse transcripts. Both drivers are single-process stores: run one server per data directory.
+
+The two drivers do not share data. Choose `sqlite` for a new deployment; switching an existing
+installation requires exporting and re-creating sessions.
 
 In containers, point this at a mounted volume (`/data`) so sessions survive restarts.
 
@@ -167,6 +175,7 @@ Snapshots live in `<storage.directory>/checkpoints` as a shadow git repository p
 | `KESTREL_SYSTEM_PROMPT` | `agent.systemPrompt` | `Be terse.` |
 | `KESTREL_PLUGINS` | `plugins.directories` | `plugins,examples/plugins` |
 | `KESTREL_DATA_DIR` | `storage.directory` | `/data` |
+| `KESTREL_STORAGE_DRIVER` | `storage.driver` | `sqlite` |
 | `KESTREL_CHECKPOINTS` | `checkpoints.enabled` | `auto` |
 | `KESTREL_CHECKPOINTS_MAX_FILES` | `checkpoints.maxFiles` | `20000` |
 | `KESTREL_AUTH_MODE` | `auth.mode` | `accounts` |

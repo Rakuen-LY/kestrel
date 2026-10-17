@@ -120,3 +120,8 @@ never contains agent logic.
   that support vision serialize user parts; text-only messages remain plain strings so endpoints
   without parts keep working. `estimateTokens` charges 1100 tokens per image, and the compaction
   transcript renders image names only — never base64.
+- Two session stores exist: `FileSessionStore` (one JSON document per session, the default) and
+  `SqliteSessionStore` (single WAL database at `<data>/kestrel.db`, opt in with
+  `storage.driver: "sqlite"`). They do not share data. Both are single-process stores; the SQLite
+  one uses Node's built-in `node:sqlite`, so it needs no native toolchain. Store lifecycle hooks are
+  optional (`flush?`, `close?`) and `SessionManager.close()` invokes both.

@@ -32,6 +32,9 @@ All notable changes to Kestrel are documented here. The format follows
 - `kestrel checkpoints list|create|restore` and a checkpoint drawer in the console.
 - Config: `checkpoints.enabled`, `checkpoints.maxFiles`, `checkpoints.exclude`; env
   `KESTREL_CHECKPOINTS`, `KESTREL_CHECKPOINTS_MAX_FILES`.
+- Storage: `SqliteSessionStore` using Node's built-in `node:sqlite` keeps every transcript in one
+  WAL database, with summary columns so listing never parses a session. Enabled with
+  `storage.driver: "sqlite"` or `KESTREL_STORAGE_DRIVER=sqlite`; the store is closed on shutdown.
 - Multimodal input: user messages may carry up to six images (PNG, JPEG, WebP, GIF). The console
   offers paperclip, paste and drag-and-drop with client-side downscaling; the HTTP API validates and
   strips `data:` prefixes; the OpenAI-compatible provider emits `image_url` content parts, and the

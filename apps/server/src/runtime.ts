@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   FileSessionStore,
   ModelRegistry,
   PromptPipeline,
   SessionManager,
+  SqliteSessionStore,
   ToolRegistry,
   defaultSystemPrompt,
 } from "@kestrel/agent";
@@ -135,7 +136,10 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     tools,
     logger: logger.child({ component: "sessions" }),
     defaultWorkspace: workspace,
-    store: new FileSessionStore(dataDirectory),
+    store:
+      config.storage.driver === "sqlite"
+        ? new SqliteSessionStore(join(dataDirectory, "kestrel.db"))
+        : new FileSessionStore(dataDirectory),
     defaultModel: config.model.default,
     prompts,
     maxSteps: config.model.maxSteps,

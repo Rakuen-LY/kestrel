@@ -202,6 +202,7 @@ export class SessionManager {
     this.sessions.clear();
     this.listeners.clear();
     await this.options.store?.flush?.();
+    await this.options.store?.close?.();
   }
 
   private instantiate(detail: SessionDetail): AgentSession {

@@ -10,6 +10,8 @@ export interface SessionStore {
   delete(id: string, tenantId?: string): Promise<void>;
   /** Awaits writes already accepted. Implementations may omit it. */
   flush?(): Promise<void>;
+  /** Releases handles held by the store. Implementations may omit it. */
+  close?(): Promise<void>;
 }
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;

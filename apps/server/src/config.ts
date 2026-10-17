@@ -42,6 +42,12 @@ export interface PluginsConfig {
 
 export interface StorageConfig {
   directory?: string;
+  /**
+   * `file` writes one JSON document per session, `sqlite` keeps every
+   * transcript in `<directory>/kestrel.db`. Both are single-process stores.
+   * Env: KESTREL_STORAGE_DRIVER. Default: `file` until the SQLite importer ships.
+   */
+  driver?: "file" | "sqlite";
 }
 
 export interface AuthConfig {
@@ -102,6 +108,10 @@ export async function loadConfig(path?: string): Promise<KestrelConfig> {
 }
 
 function mergeConfig(base: KestrelConfig, override: Partial<KestrelConfig>): KestrelConfig {
+  const driver = override.storage?.driver;
+  if (driver !== undefined && driver !== "file" && driver !== "sqlite") {
+    throw new Error(`storage.driver must be "file" or "sqlite", got "${String(driver)}".`);
+  }
   return {
     ...base,
     ...override,
@@ -150,7 +160,14 @@ function applyEnvironment(config: KestrelConfig): KestrelConfig {
       systemPrompt: env.KESTREL_SYSTEM_PROMPT ?? config.agent.systemPrompt,
     },
     plugins: { ...config.plugins, directories: plugins ?? config.plugins.directories },
-    storage: { ...config.storage, directory: env.KESTREL_DATA_DIR ?? config.storage.directory },
+    storage: {
+      ...config.storage,
+      directory: env.KESTREL_DATA_DIR ?? config.storage.directory,
+      driver:
+        env.KESTREL_STORAGE_DRIVER === "sqlite" || env.KESTREL_STORAGE_DRIVER === "file"
+          ? env.KESTREL_STORAGE_DRIVER
+          : config.storage.driver,
+    },
     checkpoints: {
       ...config.checkpoints,
       enabled: parseSwitch(env.KESTREL_CHECKPOINTS) ?? config.checkpoints.enabled,
