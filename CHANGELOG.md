@@ -4,6 +4,24 @@ All notable changes to Kestrel are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `delegate_many`: fan-out delegation. Up to `maxFanOut` independent tasks run concurrently under the
+  same per-parent budget as `delegate`; excess tasks queue and are dropped if the parent is cancelled.
+  Results are returned in request order with per-task status, timing, usage and session id.
+- `DelegationGate`: a FIFO, abort-aware semaphore that owns concurrency policy for every delegation
+  tool, keyed by parent session.
+- `subagents.concurrency(parentId)` on the plugin service reports `{ limit, active, queued }`.
+- Config: `maxFanOut` (6) and `maxBatchResultChars` (40000); `maxConcurrent: 0` now means unbounded.
+
+### Changed
+
+- The subagents plugin is split into `gate`, `run` and `tools` modules so the execution policy is
+  testable without a session, and both tools share one runner.
+- `toolAllowlist` now adds both delegation tools while depth remains.
+
 ## [0.1.0] - 2026-10-17
 
 The first release. Kestrel is a plugin-first agent platform: a small agent core, a dependency-aware

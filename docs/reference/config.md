@@ -207,7 +207,9 @@ See [Skills](/guide/skills) for the file format and the loading model.
 | Key | Default |
 | --- | --- |
 | `maxDepth` | `2` |
-| `maxConcurrent` | `3` |
+| `maxConcurrent` | `3` — shared by `delegate` and `delegate_many`; `0` is unbounded |
+| `maxFanOut` | `6` |
+| `maxBatchResultChars` | `40000` |
 | `maxSteps` | `12` |
 | `timeoutMs` | `600000` |
 | `maxResultChars` | `20000` |

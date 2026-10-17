@@ -55,15 +55,20 @@ never contains agent logic.
 
 ## Delegation
 
-- `@kestrel/plugin-subagents` owns the `delegate` tool and the `subagents` service. Session
+- `@kestrel/plugin-subagents` owns `delegate`, `delegate_many` and the `subagents` service. Session
   provenance lives in the agent core (`parentId`, `depth`, `role`), not in the plugin, so HTTP,
   persistence and the console all see it without special cases.
+- Concurrency policy lives in one `DelegationGate` (`plugins/subagents/src/gate.ts`), keyed by parent
+  session. Both tools acquire from it, so a batch cannot exceed `maxConcurrent` even when a single
+  delegation is also in flight. Queued tasks create their session only when granted a slot.
 - A subagent shares the workspace and tool registry but not the transcript. Its prompt is framed by
   `subagentSystemPrompt`; its tools are an allowlist computed at creation time.
 - Tools with permission `ask` are excluded from subagents by default, because nobody is watching the
   child session's approval queue. `exposeApprovalTools` overrides this deliberately.
-- Depth is enforced twice: the tool checks `session.depth`, and `delegate` is stripped from the
-  child's allowlist when no depth remains.
+- Depth is enforced twice: the tools check `session.depth`, and both delegation tools are stripped
+  from the child's allowlist when no depth remains.
+- `delegate_many` reports a partially failed batch as a non-error result; only a fully failed batch
+  sets `isError`. Clients should read `data.counts` / `data.results` rather than parse prose.
 - `AgentSession.callModel` races the provider call against the abort signal; a hung provider must not
   leave a session stuck in `running`.
 

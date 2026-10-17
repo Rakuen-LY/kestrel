@@ -31,6 +31,7 @@
       "@kestrel/plugin-subagents": {
         "maxDepth": 2,
         "maxConcurrent": 3,
+        "maxFanOut": 6,
         "maxSteps": 12,
         "timeoutMs": 600000
       }

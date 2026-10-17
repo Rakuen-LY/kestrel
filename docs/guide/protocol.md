@@ -69,7 +69,7 @@ curl -sS -X POST http://127.0.0.1:7331/api/sessions \
 
 All fields except `title` are optional. `workspace` must be resolvable by the server.
 
-Sessions created by `delegate` carry delegation metadata on every summary and detail response:
+Sessions created by `delegate` or `delegate_many` carry delegation metadata on every summary and detail response:
 
 ```json
 { "parentId": "9a1b…", "depth": 1, "role": "researcher" }

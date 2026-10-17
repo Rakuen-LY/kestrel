@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { ScriptedModel } from "@kestrel/testkit";
+import { ScriptedModel, type ScriptedTurn } from "@kestrel/testkit";
 import { createRuntime, type Runtime } from "../src/runtime.js";
 import { createHttpServer } from "../src/http.js";
 
@@ -30,7 +30,13 @@ interface Harness {
   runtime: Runtime;
 }
 
-async function boot(): Promise<Harness> {
+async function boot(
+  turns: ScriptedTurn[] = [
+    { toolCalls: [{ name: "delegate", arguments: { task: "List the files", role: "researcher" } }] },
+    { content: "child report: two files" },
+    { content: "parent final" },
+  ],
+): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), "kestrel-delegation-"));
   const workspace = join(root, "workspace");
   await mkdir(workspace, { recursive: true });
@@ -47,15 +53,9 @@ async function boot(): Promise<Harness> {
   );
 
   const runtime = await createRuntime({ configPath });
-  // Turn order follows execution: parent delegates, child answers, parent concludes.
-  runtime.models.register(
-    new ScriptedModel([
-      { toolCalls: [{ name: "delegate", arguments: { task: "List the files", role: "researcher" } }] },
-      { content: "child report: two files" },
-      { content: "parent final" },
-    ]),
-    { setDefault: true },
-  );
+  // Turn order follows execution: the parent's turn, then one per child, then
+  // the parent's conclusion.
+  runtime.models.register(new ScriptedModel(turns), { setDefault: true });
 
   const server: Server = createHttpServer(runtime);
   await new Promise<void>((listener) => server.listen(0, "127.0.0.1", listener));
@@ -111,6 +111,7 @@ describe.skipIf(!built)("delegation over HTTP", () => {
     const parentId = created.session.id;
     const { runtime } = harness;
     expect(runtime.tools.get("delegate")).toBeDefined();
+    expect(runtime.tools.get("delegate_many")).toBeDefined();
 
     await json(harness, `/api/sessions/${parentId}/messages`, {
       method: "POST",
@@ -135,5 +136,62 @@ describe.skipIf(!built)("delegation over HTTP", () => {
     expect(parent.session.messages.at(-1)?.content).toBe("parent final");
     // The parent summary stays a root: delegation adds an edge, not an inheritance.
     expect(parent.session.parentId).toBeUndefined();
+  });
+
+  it("runs a batch as sibling sessions and returns one report per task", async () => {
+    const harness = await boot([
+      {
+        toolCalls: [
+          {
+            name: "delegate_many",
+            arguments: {
+              tasks: [
+                { task: "Audit the parser", role: "researcher" },
+                { task: "Review the CLI output", role: "reviewer" },
+              ],
+            },
+          },
+        ],
+      },
+      { content: "parser report" },
+      { content: "cli report" },
+      { content: "parent summary" },
+    ]);
+
+    const created = await json<SessionPayload>(harness, "/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({ title: "Fan out" }),
+    });
+    const parentId = created.session.id;
+
+    await json(harness, `/api/sessions/${parentId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: "Audit two areas in parallel." }),
+    });
+
+    let children: Array<{ id: string; parentId?: string; role?: string }> = [];
+    await waitFor(async () => {
+      const listed = await json<{ sessions: Array<{ id: string; parentId?: string; role?: string }> }>(
+        harness,
+        "/api/sessions",
+      );
+      children = listed.sessions.filter((session) => session.parentId === parentId);
+      const parent = await json<SessionPayload>(harness, `/api/sessions/${parentId}`);
+      return children.length === 2 && parent.session.status !== "running";
+    });
+
+    expect(children.map((child) => child.role).sort()).toEqual(["researcher", "reviewer"]);
+
+    const parent = await json<SessionPayload>(harness, `/api/sessions/${parentId}`);
+    const toolMessage = parent.session.messages.find((message) => message.role === "tool");
+    expect(toolMessage?.content).toContain("Delegated 2 tasks");
+    expect(toolMessage?.content).toContain("parser report");
+    expect(toolMessage?.content).toContain("cli report");
+    expect(parent.session.messages.at(-1)?.content).toBe("parent summary");
+
+    for (const child of children) {
+      const detail = await json<SessionPayload>(harness, `/api/sessions/${child.id}`);
+      expect(detail.session).toMatchObject({ parentId, depth: 1, status: "idle" });
+    }
   });
 });

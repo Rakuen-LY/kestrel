@@ -116,8 +116,9 @@ approval". Returning `"deny"` rejects the call without asking.
 
 `@kestrel/plugin-memory` adds `memory_save`, `memory_search`, `memory_list` and `memory_forget`.
 `@kestrel/plugin-skills` adds `use_skill`, which loads a workspace procedure on demand; see
-[Skills](/guide/skills). `@kestrel/plugin-subagents` adds `delegate`, which runs a scoped task in a
-separate session; see [Subagents](/guide/subagents).
+[Skills](/guide/skills). `@kestrel/plugin-subagents` adds `delegate` (one scoped task in a separate
+session) and `delegate_many` (a batch of independent tasks run concurrently); see
+[Subagents](/guide/subagents).
 The example clock plugin adds `clock_now`.
 
 File tools resolve paths against the session workspace and, with `restrictToWorkspace: true` (the

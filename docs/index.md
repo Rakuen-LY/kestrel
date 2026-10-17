@@ -24,7 +24,7 @@ features:
   - title: Streaming, resumable sessions
     details: Every run emits typed events. Clients resume from the last event id, render tool calls live and approve risky actions out of band.
   - title: Delegation you can bound
-    details: A parent hands one scoped task to a subagent with a fresh context, a role and a step budget. Depth, concurrency and wall clock are capped, and every child is a session you can inspect.
+    details: A parent hands one task—or a batch of independent ones—to subagents with fresh contexts, roles and step budgets. Concurrency, depth and wall clock are capped, and every child is a session you can inspect.
   - title: Boring where it matters
     details: No hidden globals, no implicit ordering. Services are explicit, disposers are tracked, and one broken plugin cannot take down the host.
 ---

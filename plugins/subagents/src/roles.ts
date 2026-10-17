@@ -13,8 +13,12 @@ export interface SubagentRole {
 export interface SubagentsConfig {
   /** Maximum delegation depth. `2` allows subagents and their subagents. */
   maxDepth?: number;
-  /** Concurrent subagents per parent session. */
+  /** Concurrent subagents per parent session. `0` means unbounded. */
   maxConcurrent?: number;
+  /** Tasks a single `delegate_many` call may start. */
+  maxFanOut?: number;
+  /** Total characters of subagent reports returned by one `delegate_many`. */
+  maxBatchResultChars?: number;
   /** Default step budget for a delegated run. */
   maxSteps?: number;
   /** Wall-clock limit for one delegated run. */
@@ -35,9 +39,13 @@ export type ResolvedRole = SubagentRole & { name: string };
 export const SUBAGENT_DEFAULTS = {
   maxDepth: 2,
   maxConcurrent: 3,
+  maxFanOut: 6,
   maxSteps: 12,
   timeoutMs: 10 * 60_000,
   maxResultChars: 20_000,
+  maxBatchResultChars: 40_000,
+  /** Floor per task, so a large batch cannot truncate every report to nothing. */
+  minBatchResultChars: 1_500,
   exposeApprovalTools: false,
 } as const;
 
