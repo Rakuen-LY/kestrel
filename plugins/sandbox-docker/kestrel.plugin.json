@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-sandbox-docker",
+  "version": "0.1.0",
+  "description": "Run Kestrel shell commands in short-lived Docker containers.",
+  "entry": "dist/index.js",
+  "inject": [],
+  "config": {
+    "enabled": false,
+    "image": "node:22-bookworm",
+    "network": "none"
+  }
+}

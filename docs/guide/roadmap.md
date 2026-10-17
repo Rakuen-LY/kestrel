@@ -56,11 +56,11 @@ See [Plugin UI](/guide/plugin-ui).
 
 ### 4. Sandbox backends
 
-- A `sandbox` service with implementations for local processes, Docker, and Kubernetes pods.
-- Tools receive a sandbox handle instead of assuming the host filesystem.
-- Per-run containers with the workspace mounted read-write and everything else read-only.
-
-This is the largest piece of work and the one that changes the security story most.
+- ~~A `sandbox` service~~ — the interface lives in `@kestrel/agent`; `@kestrel/plugin-sandbox-docker`
+  runs each shell command in a disposable container; see [Process sandbox](/guide/sandbox).
+- Route every tool (filesystem, search, fetch) through the sandbox, not only `shell`.
+- A Kubernetes pod backend and per-run resource quotas. This remains the piece that changes the
+  security story most.
 
 ### 5. Clients beyond the browser
 
@@ -84,7 +84,8 @@ This is the largest piece of work and the one that changes the security story mo
   results.
 - ~~Checkpoints and rollback for workspace edits~~ — shipped; see [Checkpoints](/guide/checkpoints).
   Still missing: rewind of the transcript alongside files.
-- Background tasks and scheduled runs.
+- ~~Background tasks and scheduled runs~~ — webhooks and cron ship in
+  `@kestrel/plugin-triggers`; file watchers and background job queues remain.
 
 ### 7. Platform features
 

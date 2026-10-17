@@ -6,6 +6,7 @@ export type { SessionManagerOptions } from "./manager.js";
 export { FileSessionStore, MemorySessionStore } from "./store.js";
 export { SqliteSessionStore } from "./store-sqlite.js";
 export type { SessionStore } from "./store.js";
+export type { Sandbox, SandboxExecOptions, SandboxExecResult, SandboxResolver } from "./sandbox.js";
 export { ModelRegistry, ToolRegistry, validateArguments, formatValidationIssues } from "./registry.js";
 export { defaultSystemPrompt, compactSystemPrompt, subagentSystemPrompt } from "./prompt.js";
 export type { SubagentPromptOptions } from "./prompt.js";

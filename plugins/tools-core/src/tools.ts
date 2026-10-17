@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, relative } from "node:path";
-import type { JsonSchema, Tool, ToolContext } from "@kestrel/agent";
+import type { JsonSchema, SandboxResolver, Tool, ToolContext } from "@kestrel/agent";
 import { displayPath, isProbablyBinary, matchesGlob, resolveWorkspacePath, walkFiles } from "./fs-utils.js";
 
 export interface CoreToolsConfig {
@@ -55,7 +55,12 @@ function cap(text: string, limit: number): string {
   return text.length <= limit ? text : `${text.slice(0, limit)}\n[... ${text.length - limit} characters truncated ...]`;
 }
 
-export function createCoreTools(config: CoreToolsConfig = {}): Tool[] {
+export interface CoreToolDependencies {
+  /** Called per shell execution so a sandbox can be enabled or removed at runtime. */
+  sandbox?: SandboxResolver;
+}
+
+export function createCoreTools(config: CoreToolsConfig = {}, dependencies: CoreToolDependencies = {}): Tool[] {
   const cfg: ResolvedConfig = { ...DEFAULTS, ...config };
 
   const readFileTool: Tool = {
@@ -321,7 +326,10 @@ export function createCoreTools(config: CoreToolsConfig = {}): Tool[] {
       );
       const timeout = integer(args.timeout_ms, cfg.shellTimeoutMs, 1_000, 30 * 60_000);
       const started = Date.now();
-      const outcome = await runShell(command, cwd, timeout, ctx);
+      const sandbox = dependencies.sandbox?.();
+      const outcome = sandbox
+        ? await runInSandbox(sandbox, command, ctx.session.workspace, cwd, timeout, ctx)
+        : await runShell(command, cwd, timeout, ctx);
       const stdout = cap(outcome.stdout, cfg.maxOutputChars);
       const stderr = cap(outcome.stderr, cfg.maxOutputChars);
       const body = [`exit_code: ${outcome.code ?? "null"}`, `duration_ms: ${Date.now() - started}`];
@@ -331,7 +339,9 @@ export function createCoreTools(config: CoreToolsConfig = {}): Tool[] {
       return {
         content: body.join("\n"),
         isError: outcome.timedOut || (outcome.code !== 0 && outcome.code !== null),
-        data: { code: outcome.code, timedOut: outcome.timedOut },
+        data: sandbox
+          ? { code: outcome.code, timedOut: outcome.timedOut, sandbox: sandbox.name }
+          : { code: outcome.code, timedOut: outcome.timedOut },
       };
     },
   };
@@ -440,6 +450,30 @@ interface ShellOutcome {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+}
+
+async function runInSandbox(
+  sandbox: NonNullable<ReturnType<SandboxResolver>>,
+  command: string,
+  workspace: string,
+  cwd: string,
+  timeoutMs: number,
+  ctx: ToolContext,
+): Promise<ShellOutcome> {
+  const result = await sandbox.exec({
+    command,
+    cwd,
+    workspace,
+    timeoutMs,
+    signal: ctx.signal,
+    env: { KESTREL_SESSION_ID: ctx.session.id },
+  });
+  return {
+    code: result.code,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    timedOut: result.timedOut,
+  };
 }
 
 function runShell(command: string, cwd: string, timeoutMs: number, ctx: ToolContext): Promise<ShellOutcome> {

@@ -129,3 +129,16 @@ never contains agent logic.
   `storage.driver: "sqlite"`). They do not share data. Both are single-process stores; the SQLite
   one uses Node's built-in `node:sqlite`, so it needs no native toolchain. Store lifecycle hooks are
   optional (`flush?`, `close?`) and `SessionManager.close()` invokes both.
+- Plugin HTTP routes (`apps/server/src/plugin-http.ts`) match exact segments plus `:name`, live
+  under `/api/`, and are dispatched after auth unless `public: true` — public handlers must check
+  their own secret and run before token auth by design. Duplicate method/path registration throws.
+- The Docker sandbox fails closed: if Docker is unavailable the `shell` tool errors instead of
+  silently running on the host. Only `shell` is routed through `sandbox`; filesystem tools still run
+  in the server process, so the workspace remains the trust boundary. Containers mount the session
+  workspace read-write at the same absolute path, run with the server UID on POSIX, and default to
+  `--network none`. Killing the Docker CLI does not stop a container, so timeouts and aborts run
+  `docker rm -f <name>` as well.
+- Triggers (`plugins/triggers`) are in-process: cron uses five UTC fields with OR semantics for
+  day-of-month/day-of-week, fires at most once per minute, skips overlapping runs and never catches
+  up after downtime. Webhook secrets expand `${ENV}`; a public hook without a secret is refused.
+

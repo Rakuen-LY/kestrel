@@ -45,7 +45,9 @@ that points outside it will be followed. If that matters, run the agent in a con
 workspace is the only mount, or mount with `nosymfollow` (Linux 5.10+).
 
 `shell` is confined by neither policy. It runs a shell with the workspace as the initial directory;
-the command can `cd` anywhere the process can read. Approvals are a speed bump, not a sandbox.
+the command can `cd` anywhere the process can read. Approvals are a speed bump, not a sandbox. Install
+[`@kestrel/plugin-sandbox-docker`](/guide/sandbox) to run shell commands in disposable containers with
+only the workspace mounted; file tools still run in the server process.
 
 Recommendations:
 

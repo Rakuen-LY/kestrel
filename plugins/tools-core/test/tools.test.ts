@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Tool, ToolContext } from "@kestrel/agent";
+import type { Sandbox, SandboxExecOptions, Tool, ToolContext } from "@kestrel/agent";
 import { createCoreTools, htmlToText } from "../src/index.js";
 
 let workspace: string;
@@ -95,6 +95,28 @@ describe("core filesystem tools", () => {
     const result = await run("shell", { command });
     expect(result.content).toContain("exit_code: 0");
     expect(result.content).toContain("marker.txt");
+  });
+
+  it("routes shell through the sandbox when one is available", async () => {
+    const calls: SandboxExecOptions[] = [];
+    const sandbox: Sandbox = {
+      name: "test-sandbox",
+      async exec(options) {
+        calls.push(options);
+        return { code: 0, stdout: "from sandbox", stderr: "", timedOut: false };
+      },
+    };
+    tools = new Map(
+      createCoreTools({ shellPermission: "auto" }, { sandbox: () => sandbox }).map((tool) => [tool.schema.name, tool]),
+    );
+
+    const result = await run("shell", { command: "echo hello", cwd: "." });
+    expect(result.content).toContain("from sandbox");
+    expect(result.data).toMatchObject({ sandbox: "test-sandbox", code: 0 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].command).toBe("echo hello");
+    expect(calls[0].workspace).toBe(workspace);
+    expect(calls[0].cwd).toBe(workspace);
   });
 
   it("tracks todos and terminates on finish", async () => {
