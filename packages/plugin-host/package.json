@@ -1,0 +1,28 @@
+{
+  "name": "@kestrel/plugin-host",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Plugin discovery, dependency ordering and lifecycle activation.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kestrel/kernel": "workspace:*",
+    "@kestrel/protocol": "workspace:*"
+  }
+}

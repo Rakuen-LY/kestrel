@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+.kestrel/
+data/
+*.log
+apps/web/dist/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+.agent_tmp/

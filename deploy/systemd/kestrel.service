@@ -1,0 +1,32 @@
+[Unit]
+Description=Kestrel agent platform
+Documentation=https://github.com/kestrel/kestrel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kestrel
+Group=kestrel
+WorkingDirectory=/opt/kestrel
+EnvironmentFile=/etc/kestrel/kestrel.env
+ExecStart=/usr/bin/node /opt/kestrel/apps/server/dist/bin.js
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Hardening. Adjust ReadWritePaths to your workspace.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/kestrel /srv/workspace
+
+[Install]
+WantedBy=multi-user.target

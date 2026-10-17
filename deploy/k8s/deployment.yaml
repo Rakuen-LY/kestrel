@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kestrel
+  namespace: kestrel
+  labels:
+    app.kubernetes.io/name: kestrel
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kestrel
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kestrel
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: kestrel
+          image: kestrel:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 7331
+          env:
+            - name: KESTREL_CONFIG
+              value: /etc/kestrel/kestrel.config.json
+            - name: KESTREL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kestrel-secrets
+                  key: KESTREL_TOKEN
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kestrel-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: KESTREL_LOG_LEVEL
+              value: info
+            - name: HOME
+              value: /tmp
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kestrel
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: kestrel-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: kestrel-data
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: kestrel-workspace
+        - name: tmp
+          emptyDir: {}

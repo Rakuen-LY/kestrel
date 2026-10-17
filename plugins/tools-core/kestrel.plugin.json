@@ -1,0 +1,14 @@
+{
+  "name": "@kestrel/plugin-tools-core",
+  "version": "0.1.0",
+  "description": "Filesystem, process, network and planning tools for the Kestrel agent.",
+  "entry": "dist/index.js",
+  "inject": [
+    "tools"
+  ],
+  "config": {
+    "restrictToWorkspace": true,
+    "shellPermission": "ask",
+    "webPermission": "ask"
+  }
+}

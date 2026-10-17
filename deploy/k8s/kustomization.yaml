@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kestrel
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Create the secret out of band:
+#   kubectl -n kestrel create secret generic kestrel-secrets \
+#     --from-literal=KESTREL_TOKEN="$(openssl rand -hex 24)" \
+#     --from-literal=OPENAI_API_KEY="sk-..."
+#
+# Then:
+#   kubectl apply -k deploy/k8s

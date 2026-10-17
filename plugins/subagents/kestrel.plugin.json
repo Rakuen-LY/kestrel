@@ -1,0 +1,13 @@
+{
+  "name": "@kestrel/plugin-subagents",
+  "version": "0.1.0",
+  "description": "Delegation plugin: scoped subagent sessions with isolated context, roles and bounded depth.",
+  "entry": "dist/index.js",
+  "inject": ["sessions", "tools", "prompts"],
+  "config": {
+    "maxDepth": 2,
+    "maxConcurrent": 3,
+    "maxSteps": 12,
+    "timeoutMs": 600000
+  }
+}

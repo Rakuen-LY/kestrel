@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-mcp",
+  "version": "0.1.0",
+  "description": "Connect Model Context Protocol servers and expose their tools to the agent.",
+  "entry": "dist/index.js",
+  "inject": [
+    "tools"
+  ],
+  "config": {
+    "servers": {}
+  }
+}

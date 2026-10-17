@@ -1,0 +1,52 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@kestrel/plugin-*": [
+        "plugins/*/src/index.ts"
+      ],
+      "@kestrel/kernel": [
+        "packages/kernel/src/index.ts"
+      ],
+      "@kestrel/protocol": [
+        "packages/protocol/src/index.ts"
+      ],
+      "@kestrel/agent": [
+        "packages/agent/src/index.ts"
+      ],
+      "@kestrel/plugin-host": [
+        "packages/plugin-host/src/index.ts"
+      ],
+      "@kestrel/testkit": [
+        "packages/testkit/src/index.ts"
+      ],
+      "@kestrel/server": [
+        "apps/server/src/index.ts"
+      ],
+      "@kestrel/cli": [
+        "apps/cli/src/index.ts"
+      ]
+    }
+  }
+}

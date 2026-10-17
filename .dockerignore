@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+.agent_tmp
+data
+*.log
+apps/web/dist
+docs

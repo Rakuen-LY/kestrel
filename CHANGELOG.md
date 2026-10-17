@@ -1,0 +1,78 @@
+# Changelog
+
+All notable changes to Kestrel are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-10-17
+
+The first release. Kestrel is a plugin-first agent platform: a small agent core, a dependency-aware
+plugin host, and every capability above that — tools, prompts, models, skills, delegation — supplied
+by plugins that can be added, removed or composed at runtime.
+
+### Added
+
+**Platform**
+
+- `@kestrel/kernel`: dependency-aware plugin host with `inject`, effect scopes, disposal, reload and
+  a typed service registry (`ServiceMap` declaration merging).
+- `@kestrel/protocol`: shared wire types for sessions, messages, tools, approvals, usage and SSE
+  events, plus a versioned protocol handshake.
+- HTTP/SSE server: sessions, streaming events with `Last-EventID` replay, approvals, plugin
+  inspection, bootstrap and health endpoints, bearer-token auth and static web serving.
+- File-backed session persistence (`sessions/<id>/session.json`) with serialized, atomic writes and
+  a shutdown `flush()` barrier; in-memory store for tests.
+
+**Agent runtime**
+
+- Streaming agent loop with tool calls, per-session step budget, cancellation and usage accounting.
+- Approvals: tools may require confirmation; requests surface as events and resolve through the API.
+- Prompt pipeline: identity and context are layers, so plugins change behaviour without forking the
+  loop.
+- OpenAI-compatible provider (`@kestrel/plugin-openai`) covering OpenAI, DeepSeek, vLLM, Ollama and
+  other `/v1` endpoints.
+- Core tools (`@kestrel/plugin-tools-core`): file read/write/edit, directory listing, glob, grep,
+  shell, fetch and todo tracking.
+
+**Delegation (`@kestrel/plugin-subagents`)**
+
+- `delegate` tool: runs one scoped task in a child session with an isolated transcript, its own step
+  budget and a filtered tool allowlist; returns a single final report.
+- Roles (`general`, `researcher`, `reviewer`, `implementer`) with instructions, model and tool
+  overrides; user configuration extends built-in roles instead of replacing them.
+- Bounded recursion via `maxDepth`, enforced both in the tool and in the child's allowlist, plus
+  concurrency, wall-clock and result-size limits.
+- Subagents are ordinary sessions: persisted with `parentId` / `depth` / `role`, visible in the API,
+  the console (indented, role chip) and `kestrel sessions`.
+- `subagents` service (`roles()`, `running()`) for dashboards and policy plugins.
+- Approval-requiring tools are withheld from subagents by default, because a child's approval prompt
+  belongs to a session the human may not be watching.
+
+**Skills (`@kestrel/plugin-skills`)**
+
+- Workspace skill discovery (`.kestrel/skills/`, `skills/`) with progressive loading: the prompt
+  carries only names and descriptions, and `use_skill` loads a body on demand.
+- `kestrel skills [show <name>] [--json]` for inspecting what the agent can load.
+
+**Clients and samples**
+
+- Web console (React + Vite): session list with delegation tree, streaming transcript, tool calls,
+  approvals, model picker, plugin status; installable as a PWA shell.
+- CLI (`kestrel`): `serve`, `chat`, `run`, `sessions`, `skills`, `plugins`, `doctor`; streams events
+  in the terminal and falls back to the completed message for non-streaming providers.
+- Example plugins (`echo-model`, `clock-tool`) used by the offline demo and the test suite.
+
+**Operations**
+
+- Dockerfile (multi-stage, non-root), `compose.yaml`, and Kubernetes manifests (Deployment, Service,
+  PVC, ConfigMap, Secret example, probes) under `deploy/`.
+- Configuration via file, environment and CLI flags with documented precedence.
+- VitePress documentation site: concepts, guides (plugins, tools, skills, subagents, protocol, CLI,
+  web console, deployment) and reference pages.
+
+### Security
+
+- All filesystem tools are rooted at the session workspace; path escapes are rejected.
+- Shell execution is approval-gated and never inherits the server's environment blindly.
+- Tool output is treated as untrusted data in the prompt.
+- Server binds to loopback by default; a token is required for non-loopback access.

@@ -1,0 +1,9 @@
+{
+  "name": "@example/plugin-clock-tool",
+  "version": "0.1.0",
+  "description": "Adds a clock tool, showing how a plugin extends another plugin's registry.",
+  "entry": "index.js",
+  "inject": [
+    "tools"
+  ]
+}

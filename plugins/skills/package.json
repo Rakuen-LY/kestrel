@@ -1,0 +1,23 @@
+{
+  "name": "@kestrel/plugin-skills",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Discovers workspace skills and exposes them through the prompt pipeline and a use_skill tool.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kestrel/agent": "workspace:*",
+    "@kestrel/kernel": "workspace:*"
+  }
+}

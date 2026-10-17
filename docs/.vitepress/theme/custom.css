@@ -1,0 +1,47 @@
+:root {
+  --vp-c-brand-1: #3d7bff;
+  --vp-c-brand-2: #2f66d8;
+  --vp-c-brand-3: #2757ba;
+  --vp-c-brand-soft: rgba(61, 123, 255, 0.14);
+  --vp-font-family-base: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --vp-code-font-size: 0.85rem;
+}
+
+.dark {
+  --vp-c-brand-1: #7ea6ff;
+  --vp-c-brand-2: #6693ff;
+  --vp-c-brand-3: #4f80f5;
+  --vp-c-brand-soft: rgba(126, 166, 255, 0.16);
+}
+
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram--error {
+  color: var(--vp-c-danger-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85rem;
+}
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+}
+
+.vp-doc th,
+.vp-doc td {
+  vertical-align: top;
+}

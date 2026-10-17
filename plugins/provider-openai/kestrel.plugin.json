@@ -1,0 +1,18 @@
+{
+  "name": "@kestrel/plugin-openai",
+  "version": "0.1.0",
+  "description": "OpenAI-compatible chat model provider (OpenAI, DeepSeek, vLLM, Ollama and others).",
+  "entry": "dist/index.js",
+  "inject": [
+    "models"
+  ],
+  "config": {
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKeyEnv": "OPENAI_API_KEY",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "models": [
+      "gpt-4o-mini"
+    ]
+  }
+}

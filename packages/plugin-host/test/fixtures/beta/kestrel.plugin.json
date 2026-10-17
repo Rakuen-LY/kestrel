@@ -1,0 +1,11 @@
+{
+  "name": "fixture-beta",
+  "version": "2.0.0",
+  "entry": "index.js",
+  "requires": [
+    "fixture-alpha"
+  ],
+  "inject": [
+    "alpha"
+  ]
+}

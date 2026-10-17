@@ -1,0 +1,24 @@
+{
+  "name": "@kestrel/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Kestrel command line interface.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "bin": {
+    "kestrel": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx --conditions=development src/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kestrel/agent": "workspace:*",
+    "@kestrel/kernel": "workspace:*",
+    "@kestrel/protocol": "workspace:*",
+    "@kestrel/server": "workspace:*",
+    "@kestrel/plugin-skills": "workspace:*"
+  }
+}

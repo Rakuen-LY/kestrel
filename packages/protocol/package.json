@@ -1,0 +1,24 @@
+{
+  "name": "@kestrel/protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared wire protocol types for Kestrel clients and servers.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

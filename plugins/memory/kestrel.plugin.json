@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-memory",
+  "version": "0.1.0",
+  "description": "Workspace-scoped durable memory with save, search, list and forget tools.",
+  "entry": "dist/index.js",
+  "inject": [
+    "tools"
+  ],
+  "config": {
+    "path": ".kestrel/memory.json"
+  }
+}

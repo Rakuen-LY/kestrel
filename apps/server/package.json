@@ -1,0 +1,32 @@
+{
+  "name": "@kestrel/server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Kestrel HTTP and SSE server.",
+  "license": "MIT",
+  "main": "./dist/main.js",
+  "bin": {
+    "kestrel-server": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/main.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch --conditions=development src/main.ts",
+    "start": "node dist/bin.js",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kestrel/agent": "workspace:*",
+    "@kestrel/kernel": "workspace:*",
+    "@kestrel/plugin-host": "workspace:*",
+    "@kestrel/protocol": "workspace:*"
+  }
+}

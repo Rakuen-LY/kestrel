@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.kestrel.agent</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/opt/kestrel/apps/server/dist/bin.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/opt/kestrel</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KESTREL_HOST</key>
+    <string>127.0.0.1</string>
+    <key>KESTREL_PORT</key>
+    <string>7331</string>
+    <key>KESTREL_WORKSPACE</key>
+    <string>/Users/Shared/kestrel-workspace</string>
+    <key>KESTREL_DATA_DIR</key>
+    <string>/Users/Shared/kestrel-data</string>
+    <key>KESTREL_LOG_LEVEL</key>
+    <string>info</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/Shared/kestrel-data/kestrel.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/Shared/kestrel-data/kestrel.error.log</string>
+
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>

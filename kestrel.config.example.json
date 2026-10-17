@@ -1,0 +1,45 @@
+{
+  "name": "Kestrel",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 7331,
+    "corsOrigins": ["http://localhost:5173"],
+    "bodyLimitBytes": 10485760
+  },
+  "model": {
+    "default": "gpt-4o-mini",
+    "temperature": 0.2,
+    "maxTokens": 8192,
+    "maxSteps": 60
+  },
+  "agent": {
+    "workspace": ".",
+    "systemPrompt": "Prefer small, verifiable changes. Run the tests you touch."
+  },
+  "plugins": {
+    "directories": ["plugins", "examples/plugins"],
+    "config": {
+      "@kestrel/plugin-openai": {
+        "apiKeyEnv": "OPENAI_API_KEY",
+        "models": ["gpt-4o-mini"]
+      },
+      "@kestrel/plugin-tools-core": {
+        "restrictToWorkspace": true,
+        "shellPermission": "ask",
+        "webPermission": "ask"
+      },
+      "@kestrel/plugin-subagents": {
+        "maxDepth": 2,
+        "maxConcurrent": 3,
+        "maxSteps": 12,
+        "timeoutMs": 600000
+      }
+    }
+  },
+  "storage": {
+    "directory": ".kestrel"
+  },
+  "approvals": {
+    "timeoutMs": 900000
+  }
+}

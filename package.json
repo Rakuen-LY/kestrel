@@ -1,0 +1,33 @@
+{
+  "name": "kestrel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A composable agent platform where everything is a plugin.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "pnpm@9.4.0",
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=4 build",
+    "build:web": "pnpm --filter @kestrel/web build",
+    "dev": "pnpm --filter @kestrel/server dev",
+    "dev:web": "pnpm --filter @kestrel/web dev",
+    "start": "node apps/server/dist/bin.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "oxlint packages apps plugins",
+    "docs:dev": "pnpm --filter @kestrel/docs dev",
+    "docs:build": "pnpm --filter @kestrel/docs build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.0.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

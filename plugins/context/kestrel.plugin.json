@@ -1,0 +1,11 @@
+{
+  "name": "@kestrel/plugin-context",
+  "version": "0.1.0",
+  "description": "Loads AGENTS.md and similar workspace guidance into the system prompt.",
+  "entry": "dist/index.js",
+  "inject": ["prompts"],
+  "config": {
+    "files": ["AGENTS.md", ".kestrel/AGENTS.md", ".cursorrules"],
+    "maxBytes": 32000
+  }
+}
