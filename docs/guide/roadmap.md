@@ -35,7 +35,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 
 ### 2. Plugin UI hardening
 
-MCP remains tools-only: resources, prompts and sampling are the next bridge work.
+MCP tools, resources and prompts are bridged; sampling and elicitation are the remaining work.
 
 Bundles now load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
 plugin's `web/` directory. Remaining work:
@@ -73,7 +73,8 @@ This is the largest piece of work and the one that changes the security story mo
 - ~~Sub-agents and delegation~~ — shipped in `@kestrel/plugin-subagents` with isolated context,
   roles and a bounded depth (see [Subagents](/guide/subagents)). Still missing: parallel fan-out in
   one tool call, and per-branch cost reporting.
-- MCP resources, prompts and sampling — tools are bridged today; see [MCP](/guide/mcp).
+- ~~MCP resources and prompts~~ — bridged as `mcp__<server>__*` tools and on the `mcp` service;
+  sampling and elicitation remain; see [MCP](/guide/mcp).
 - ~~Context compaction and summarisation for long sessions~~ — shipped; see
   [Long sessions](/guide/models#long-sessions-and-compaction).
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery

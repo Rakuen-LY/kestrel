@@ -16,6 +16,48 @@ export interface McpToolResult {
   data: unknown;
 }
 
+export interface McpResourceDescriptor {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceContent {
+  uri: string;
+  mimeType?: string;
+  text?: string;
+  blob?: string;
+}
+
+export interface McpReadResult {
+  contents: McpResourceContent[];
+  text: string;
+}
+
+export interface McpPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptDescriptor {
+  name: string;
+  description?: string;
+  arguments?: McpPromptArgument[];
+}
+
+export interface McpPromptMessage {
+  role: string;
+  content: unknown;
+}
+
+export interface McpPromptResult {
+  description?: string;
+  messages: McpPromptMessage[];
+  text: string;
+}
+
 export interface McpStdioConfig {
   /** Executable to launch. Mutually exclusive with `url`. */
   command: string;
@@ -52,6 +94,10 @@ export interface McpClient {
   start(): Promise<void>;
   listTools(): Promise<McpToolDescriptor[]>;
   callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
+  listResources(): Promise<McpResourceDescriptor[]>;
+  readResource(uri: string): Promise<McpReadResult>;
+  listPrompts(): Promise<McpPromptDescriptor[]>;
+  getPrompt(name: string, args?: Record<string, string>): Promise<McpPromptResult>;
   close(): void;
 }
 
@@ -121,6 +167,31 @@ export class McpStdioClient implements McpClient {
       isError?: boolean;
     };
     return { content: textOf(result), isError: result.isError === true, data: result };
+  }
+
+  async listResources(): Promise<McpResourceDescriptor[]> {
+    const result = (await this.request("resources/list", {})) as { resources?: McpResourceDescriptor[] };
+    return result.resources ?? [];
+  }
+
+  async readResource(uri: string): Promise<McpReadResult> {
+    const result = (await this.request("resources/read", { uri })) as { contents?: McpResourceContent[] };
+    const contents = result.contents ?? [];
+    return { contents, text: formatResourceContents(contents) };
+  }
+
+  async listPrompts(): Promise<McpPromptDescriptor[]> {
+    const result = (await this.request("prompts/list", {})) as { prompts?: McpPromptDescriptor[] };
+    return result.prompts ?? [];
+  }
+
+  async getPrompt(name: string, args: Record<string, string> = {}): Promise<McpPromptResult> {
+    const result = (await this.request("prompts/get", { name, arguments: args })) as {
+      description?: string;
+      messages?: McpPromptMessage[];
+    };
+    const messages = result.messages ?? [];
+    return { description: result.description, messages, text: formatPromptMessages(messages) };
   }
 
   close(): void {
@@ -225,6 +296,31 @@ export class McpHttpClient implements McpClient {
       isError?: boolean;
     };
     return { content: textOf(result), isError: result.isError === true, data: result };
+  }
+
+  async listResources(): Promise<McpResourceDescriptor[]> {
+    const result = (await this.request("resources/list", {})) as { resources?: McpResourceDescriptor[] };
+    return result.resources ?? [];
+  }
+
+  async readResource(uri: string): Promise<McpReadResult> {
+    const result = (await this.request("resources/read", { uri })) as { contents?: McpResourceContent[] };
+    const contents = result.contents ?? [];
+    return { contents, text: formatResourceContents(contents) };
+  }
+
+  async listPrompts(): Promise<McpPromptDescriptor[]> {
+    const result = (await this.request("prompts/list", {})) as { prompts?: McpPromptDescriptor[] };
+    return result.prompts ?? [];
+  }
+
+  async getPrompt(name: string, args: Record<string, string> = {}): Promise<McpPromptResult> {
+    const result = (await this.request("prompts/get", { name, arguments: args })) as {
+      description?: string;
+      messages?: McpPromptMessage[];
+    };
+    const messages = result.messages ?? [];
+    return { description: result.description, messages, text: formatPromptMessages(messages) };
   }
 
   close(): void {
@@ -357,6 +453,10 @@ export interface McpService {
   servers(): string[];
   tools(): Array<{ server: string; tool: McpToolDescriptor }>;
   call(server: string, tool: string, args: Record<string, unknown>): Promise<{ content: string; isError: boolean }>;
+  resources(): Array<{ server: string; resource: McpResourceDescriptor }>;
+  prompts(): Array<{ server: string; prompt: McpPromptDescriptor }>;
+  readResource(server: string, uri: string): Promise<McpReadResult>;
+  getPrompt(server: string, name: string, args?: Record<string, string>): Promise<McpPromptResult>;
 }
 
 export default {
@@ -368,6 +468,9 @@ export default {
     const registry = context.get("tools");
     const clients = new Map<string, McpClient>();
     const discovered: Array<{ server: string; tool: McpToolDescriptor }> = [];
+    const discoveredResources: Array<{ server: string; resource: McpResourceDescriptor }> = [];
+    const discoveredPrompts: Array<{ server: string; prompt: McpPromptDescriptor }> = [];
+    const capability = new Set<string>();
 
     for (const [serverName, serverConfig] of Object.entries(config.servers ?? {})) {
       let client: McpClient | undefined;
@@ -376,9 +479,11 @@ export default {
         await ready.start();
         client = ready;
         clients.set(serverName, ready);
+        const taken = new Set<string>();
         for (const descriptor of await client.listTools()) {
           discovered.push({ server: serverName, tool: descriptor });
           const toolName = `mcp__${sanitize(serverName)}__${sanitize(descriptor.name)}`;
+          taken.add(toolName);
           const tool: Tool = {
             schema: {
               name: toolName,
@@ -393,6 +498,118 @@ export default {
             },
           };
           context.effect(() => registry.register(tool));
+        }
+
+        const registerExtra = (tool: Tool): void => {
+          if (taken.has(tool.schema.name)) {
+            context.logger.warn("mcp bridge tool name collision", {
+              server: serverName,
+              tool: tool.schema.name,
+            });
+            return;
+          }
+          taken.add(tool.schema.name);
+          context.effect(() => registry.register(tool));
+        };
+        const bridgePrefix = `mcp__${sanitize(serverName)}__`;
+        const approval = serverConfig.approval ?? "ask";
+        const namespace = `[MCP:${serverName}]`;
+
+        try {
+          const listed = await ready.listResources();
+          capability.add(`${serverName}:resources`);
+          for (const resource of listed) discoveredResources.push({ server: serverName, resource });
+          registerExtra({
+            schema: {
+              name: `${bridgePrefix}list_resources`,
+              description: `${namespace} List the resource URIs this server publishes.`,
+              category: "mcp",
+              permission: "auto",
+              parameters: { type: "object", properties: {}, additionalProperties: false },
+            },
+            async execute() {
+              const resources = await ready.listResources();
+              return { content: JSON.stringify({ resources }, null, 2), isError: false, data: resources };
+            },
+          });
+          registerExtra({
+            schema: {
+              name: `${bridgePrefix}read_resource`,
+              description: `${namespace} Read a resource by URI.`,
+              category: "mcp",
+              permission: approval,
+              parameters: {
+                type: "object",
+                properties: { uri: { type: "string", description: "Resource URI from list_resources." } },
+                required: ["uri"],
+                additionalProperties: false,
+              },
+            },
+            async execute(args) {
+              const uri = typeof args.uri === "string" ? args.uri : "";
+              if (!uri) return { content: "Error: uri is required.", isError: true, data: undefined };
+              const result = await ready.readResource(uri);
+              return { content: result.text, isError: false, data: result.contents };
+            },
+          });
+        } catch (error) {
+          context.logger.debug("mcp resources unavailable", {
+            server: serverName,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        try {
+          const listed = await ready.listPrompts();
+          capability.add(`${serverName}:prompts`);
+          for (const prompt of listed) discoveredPrompts.push({ server: serverName, prompt });
+          registerExtra({
+            schema: {
+              name: `${bridgePrefix}list_prompts`,
+              description: `${namespace} List reusable prompt templates with their arguments.`,
+              category: "mcp",
+              permission: "auto",
+              parameters: { type: "object", properties: {}, additionalProperties: false },
+            },
+            async execute() {
+              const prompts = await ready.listPrompts();
+              return { content: JSON.stringify({ prompts }, null, 2), isError: false, data: prompts };
+            },
+          });
+          registerExtra({
+            schema: {
+              name: `${bridgePrefix}get_prompt`,
+              description: `${namespace} Render a prompt template into messages.`,
+              category: "mcp",
+              permission: approval,
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Prompt name from list_prompts." },
+                  arguments: {
+                    type: "object",
+                    description: "Template arguments; values are strings.",
+                    additionalProperties: { type: "string" },
+                  },
+                },
+                required: ["name"],
+                additionalProperties: false,
+              },
+            },
+            async execute(args) {
+              const name = typeof args.name === "string" ? args.name : "";
+              if (!name) return { content: "Error: name is required.", isError: true, data: undefined };
+              const values = isStringRecord(args.arguments) ? args.arguments : {};
+              const result = await ready.getPrompt(name, values);
+              const text = result.description ? `${result.description}\n\n${result.text}` : result.text;
+              return { content: text, isError: false, data: result.messages };
+            },
+          });
+        } catch (error) {
+          context.logger.debug("mcp prompts unavailable", {
+            server: serverName,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       } catch (error) {
         context.logger.error("mcp server failed", {
@@ -412,14 +629,75 @@ export default {
         const result = await client.callTool(tool, args);
         return { content: result.content, isError: result.isError };
       },
+      resources: () => [...discoveredResources],
+      prompts: () => [...discoveredPrompts],
+      async readResource(server, uri) {
+        const client = clients.get(server);
+        if (!client) throw new Error(`Unknown MCP server "${server}".`);
+        return client.readResource(uri);
+      },
+      async getPrompt(server, name, args = {}) {
+        const client = clients.get(server);
+        if (!client) throw new Error(`Unknown MCP server "${server}".`);
+        return client.getPrompt(name, args);
+      },
     };
     context.provide("mcp", service);
     context.effect(() => () => {
       for (const client of clients.values()) client.close();
     });
-    context.logger.info("mcp ready", { servers: clients.size, tools: discovered.length });
+    context.logger.info("mcp ready", {
+      servers: clients.size,
+      tools: discovered.length,
+      resources: discoveredResources.length,
+      prompts: discoveredPrompts.length,
+      capabilities: [...capability],
+    });
   },
 };
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((item) => typeof item === "string")
+  );
+}
+
+function formatResourceContents(contents: McpResourceContent[]): string {
+  if (contents.length === 0) return "(no contents)";
+  return contents
+    .map((content) => {
+      const head = `[${content.uri}${content.mimeType ? ` (${content.mimeType})` : ""}]`;
+      if (typeof content.text === "string") return `${head}\n${content.text}`;
+      if (content.blob) return `${head}\n(binary: ${content.blob.length} base64 characters)`;
+      return head;
+    })
+    .join("\n\n");
+}
+
+function formatPromptMessages(messages: McpPromptMessage[]): string {
+  if (messages.length === 0) return "(no messages)";
+  return messages.map((message) => `[${message.role}] ${promptContentToText(message.content)}`).join("\n\n");
+}
+
+function promptContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map(promptContentToText).join("\n");
+  if (content && typeof content === "object") {
+    const part = content as {
+      type?: string;
+      text?: string;
+      mimeType?: string;
+      resource?: { uri?: string; text?: string; mimeType?: string };
+    };
+    if (typeof part.text === "string") return part.text;
+    if (part.type === "image") return `[image ${part.mimeType ?? "unknown"}]`;
+    if (part.resource?.text) return part.resource.text;
+  }
+  return JSON.stringify(content);
+}
 
 function textOf(result: { content?: Array<{ type?: string; text?: string }> }): string {
   const text = (result.content ?? [])

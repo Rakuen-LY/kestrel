@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { silencedLogger } from "@kestrel/kernel";
-import { McpHttpClient, createMcpClient } from "../src/index.js";
+import { silencedLogger, createContext } from "@kestrel/kernel";
+import { ToolRegistry, type ToolContext } from "@kestrel/agent";
+import mcpPlugin, { McpHttpClient, createMcpClient } from "../src/index.js";
 
 const logger = silencedLogger();
 
@@ -88,6 +89,68 @@ async function startServer(options: { expireFirstCall?: boolean } = {}): Promise
         res.end();
         return;
       }
+      if (message.method === "resources/list") {
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: {
+              resources: [
+                { uri: "file:///handbook.md", name: "Handbook", mimeType: "text/markdown" },
+              ],
+            },
+          }),
+        );
+        return;
+      }
+      if (message.method === "resources/read") {
+        const params = message.params as { uri: string };
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: {
+              contents: [{ uri: params.uri, mimeType: "text/markdown", text: "# Handbook" }],
+            },
+          }),
+        );
+        return;
+      }
+      if (message.method === "prompts/list") {
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: {
+              prompts: [
+                { name: "review", description: "Review a change", arguments: [{ name: "target", required: true }] },
+              ],
+            },
+          }),
+        );
+        return;
+      }
+      if (message.method === "prompts/get") {
+        const params = message.params as { name: string; arguments?: Record<string, string> };
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: {
+              description: "Review a change",
+              messages: [
+                { role: "user", content: { type: "text", text: `review ${params.arguments?.target ?? ""}` } },
+                { role: "user", content: [{ type: "image", data: "AAAA", mimeType: "image/png" }] },
+              ],
+            },
+          }),
+        );
+        return;
+      }
       res.writeHead(400).end("unexpected method");
     });
   };
@@ -160,6 +223,70 @@ describe("MCP over streamable HTTP", () => {
 
     expect(result.content).toContain("retry");
     expect(harness.initializes).toBe(2);
+  });
+
+  it("lists and reads resources, then renders prompt templates", async () => {
+    process.env.MCP_TEST_KEY = "test-key";
+    const harness = await startServer();
+    cleanups.push(harness.close);
+    const client = await connect(harness.url);
+
+    const resources = await client.listResources();
+    expect(resources.map((resource) => resource.uri)).toEqual(["file:///handbook.md"]);
+
+    const read = await client.readResource("file:///handbook.md");
+    expect(read.contents).toHaveLength(1);
+    expect(read.text).toContain("[file:///handbook.md (text/markdown)]");
+    expect(read.text).toContain("# Handbook");
+
+    const prompts = await client.listPrompts();
+    expect(prompts.map((prompt) => prompt.name)).toEqual(["review"]);
+
+    const prompt = await client.getPrompt("review", { target: "src/app.ts" });
+    expect(prompt.description).toBe("Review a change");
+    expect(prompt.text).toContain("[user] review src/app.ts");
+    expect(prompt.text).toContain("[image image/png]");
+  });
+
+  it("registers resource and prompt tools through the plugin", async () => {
+    process.env.MCP_TEST_KEY = "test-key";
+    const harness = await startServer();
+    cleanups.push(harness.close);
+    const context = createContext({ logger });
+    const registry = new ToolRegistry();
+    context.provide("tools", registry);
+
+    await mcpPlugin.apply(context, {
+      servers: { mock: { url: harness.url, headers: { Authorization: "Bearer ${MCP_TEST_KEY}" } } },
+    });
+    cleanups.push(async () => context.dispose());
+
+    const toolContext: ToolContext = {
+      session: { id: "s1", workspace: process.cwd(), messages: [], metadata: new Map() },
+      callId: "call_1",
+      signal: new AbortController().signal,
+      logger,
+      progress: () => undefined,
+    };
+
+    const listResources = registry.get("mcp__mock__list_resources");
+    expect(listResources).toBeDefined();
+    const listed = await listResources!.execute({}, toolContext);
+    expect(listed.content).toContain("file:///handbook.md");
+
+    const read = await registry.get("mcp__mock__read_resource")!.execute(
+      { uri: "file:///handbook.md" },
+      toolContext,
+    );
+    expect(read.content).toContain("# Handbook");
+    expect(read.isError).toBe(false);
+
+    const prompt = await registry.get("mcp__mock__get_prompt")!.execute(
+      { name: "review", arguments: { target: "src" } },
+      toolContext,
+    );
+    expect(prompt.content).toContain("Review a change");
+    expect(prompt.content).toContain("[user] review src");
   });
 
   it("refuses configs without a transport", () => {

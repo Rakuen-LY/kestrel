@@ -8,6 +8,10 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- MCP resources and prompts: servers that support them now contribute
+  `mcp__<server>__{list,read}_resource` and `mcp__<server>__{list,get}_prompt` tools, and the `mcp`
+  service exposes `resources()`, `prompts()`, `readResource()` and `getPrompt()` for plugin-to-plugin
+  use.
 - Resumable runs: a session persisted as `running` becomes `interrupted` on boot, and
   `POST /api/sessions/:id/resume` (or `kestrel sessions resume <id>`, or the console's Resume
   button) re-enters the loop from the stored transcript. Pending tool calls are answered with an

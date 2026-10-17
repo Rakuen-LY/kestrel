@@ -5,8 +5,8 @@ processes: a database gateway, a browser driver, a ticketing system, a filesyste
 is a plugin (`@kestrel/plugin-mcp`), so it follows the same lifecycle, configuration and approval
 rules as the built-in tools.
 
-It does one thing: connect to MCP servers, list their tools and expose them to the agent as
-`mcp__<server>__<tool>`. It does not pass prompts, resources or sampling requests yet.
+It connects to MCP servers and exposes three of the protocol's primitives to the agent: tools,
+resources and prompts. Sampled and elicitation requests are not bridged yet.
 
 ## Transports
 
@@ -63,6 +63,21 @@ expose `search` without colliding. `permission` comes from `servers.<name>.appro
 Tool results are flattened to text. `structuredContent` is preserved in the tool result's `data` for
 consumers that understand it, but the model reads the text parts.
 
+Servers that support resources also get four bridge tools, so the model can discover and read
+documents without a bespoke plugin for each server:
+
+| Tool | Permission | Purpose |
+| --- | --- | --- |
+| `mcp__<server>__list_resources` | `auto` | Lists resource URIs, names and MIME types. |
+| `mcp__<server>__read_resource` | server `approval` | Reads one URI; text is returned, blobs are described by size. |
+| `mcp__<server>__list_prompts` | `auto` | Lists prompt templates and their arguments. |
+| `mcp__<server>__get_prompt` | server `approval` | Renders a template into `[role] text` blocks. |
+
+Listing is metadata only and runs without approval; reading content or rendering a prompt follows the
+server's `approval` setting, because the payload comes from a remote process. A server that answers
+`resources/list` or `prompts/list` with an error simply gets no bridge tools, and the rest of its
+tools keep working.
+
 ## Connection lifecycle
 
 - Servers connect during plugin startup, before the first session is created. Startup order is
@@ -99,8 +114,11 @@ export default {
 };
 ```
 
-`mcp.tools()` returns `{ server, tool }` pairs; `mcp.servers()` returns connected names. This is the
-plugin-to-plugin linkage the platform is built around: services, not imports.
+`mcp.tools()` returns `{ server, tool }` pairs; `mcp.servers()` returns connected names.
+`mcp.resources()` and `mcp.prompts()` return what was discovered at startup, and
+`mcp.readResource(server, uri)` / `mcp.getPrompt(server, name, args)` call through the same
+connection. This is the plugin-to-plugin linkage the platform is built around: services, not
+imports.
 
 ## Security
 
@@ -116,7 +134,9 @@ plugin-to-plugin linkage the platform is built around: services, not imports.
 
 ## Limits
 
-- Tools only. Resources, prompts, sampling and elicitation are not bridged yet.
+- Sampling and elicitation are not bridged: the server cannot ask Kestrel's model for a completion
+  or the user for input.
+- Resources and prompts are discovered once, at startup. A template added later needs a restart.
 - No OAuth flow for HTTP servers; use a static token header or a header-injecting proxy.
 - A server whose tool list changes at runtime is not re-discovered; restart the server to pick up
   new tools. The plugin emits `plugin.changed` only on install and removal.
