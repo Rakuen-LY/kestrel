@@ -6,9 +6,10 @@ import { MessageBubble } from "./components/MessageBubble.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { PluginSlot } from "./components/PluginSlot.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
+import { CheckpointsPanel } from "./components/CheckpointsPanel.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { ToolCallCard } from "./components/ToolCall.js";
-import { BoltIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
+import { BoltIcon, HistoryIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
 import { usePluginExtensions } from "./extensions.js";
 import { useKestrel } from "./state.js";
 import { readToken, writeEndpoint, writeToken } from "./api.js";
@@ -68,6 +69,7 @@ export default function App() {
   const { state, actions, api } = useKestrel();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [checkpointsOpen, setCheckpointsOpen] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(readToken()));
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -170,6 +172,16 @@ export default function App() {
                 </select>
               </label>
             )}
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setCheckpointsOpen(true)}
+              aria-label="Workspace checkpoints"
+              title="Workspace checkpoints"
+              disabled={!state.activeId}
+            >
+              <HistoryIcon size={17} />
+            </button>
             <button type="button" className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Settings">
               <SettingsIcon size={17} />
             </button>
@@ -263,6 +275,13 @@ export default function App() {
           onCancel={() => actions.cancel()}
         />
       </main>
+
+      <CheckpointsPanel
+        open={checkpointsOpen}
+        api={api}
+        sessionId={state.activeId}
+        onClose={() => setCheckpointsOpen(false)}
+      />
 
       <SettingsPanel
         open={settingsOpen}

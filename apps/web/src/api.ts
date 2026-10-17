@@ -1,6 +1,8 @@
 import type {
   ApprovalDecision,
+  CheckpointInfo,
   BootstrapResponse,
+  CheckpointListResponse,
   CreateSessionRequest,
   HealthResponse,
   PluginInfo,
@@ -142,6 +144,27 @@ export class KestrelApi {
     mode: "none" | "token" | "accounts";
   }> {
     return this.request("/api/auth/me");
+  }
+
+  checkpoints(sessionId: string): Promise<CheckpointListResponse> {
+    return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/checkpoints`);
+  }
+
+  createCheckpoint(sessionId: string, label?: string): Promise<{ checkpoint: CheckpointInfo }> {
+    return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/checkpoints`, {
+      method: "POST",
+      body: JSON.stringify({ label }),
+    });
+  }
+
+  restoreCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+  ): Promise<{ restored: CheckpointInfo; safety: CheckpointInfo }> {
+    return this.request(
+      `/api/sessions/${encodeURIComponent(sessionId)}/checkpoints/${encodeURIComponent(checkpointId)}/restore`,
+      { method: "POST" },
+    );
   }
 
   plugins(): Promise<{ plugins: PluginInfo[] }> {

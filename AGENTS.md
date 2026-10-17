@@ -97,3 +97,9 @@ never contains agent logic.
   `kestrel users create`. Tokens are hashed with SHA-256 and never recoverable; rotate instead.
 - The web console is served from `apps/web/dist` (config `server.webRoot`); without it the server
   returns a small JSON notice at `/`.
+- Checkpoints (`apps/server/src/checkpoints.ts`) are workspace-level, backed by a shadow git repo at
+  `<data>/checkpoints/<sha1(workspace)>/repo.git`. Never point it at the workspace's own `.git`.
+  `snapshotUnlocked` is called by `restore` inside the same per-workspace queue; calling the public
+  `snapshot()` there would deadlock. Restores use `reset --hard` + `clean -fd` (no `-x`) so ignored
+  files such as `node_modules/` survive.
+- A checkpoint failure must never fail a run: both HTTP and CLI wrap snapshots in try/catch and log.

@@ -22,6 +22,9 @@ mobile client. The server, console and CLI all use these types.
 | `POST` | `/api/sessions/:id/cancel` | `200 { cancelled: boolean }` | Idempotent. |
 | `GET` | `/api/sessions/:id/events` | `200 text/event-stream` | Session-scoped stream. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | `200 { resolved: true }` | Body `{ "approved": boolean, "note"?: string }`. |
+| `GET` | `/api/sessions/:id/checkpoints` | `200 CheckpointListResponse` | `enabled`, optional `reason`, `checkpoints[]`. |
+| `POST` | `/api/sessions/:id/checkpoints` | `201 { checkpoint }` | Body `{ "label"?: string }`. |
+| `POST` | `/api/sessions/:id/checkpoints/:checkpointId/restore` | `200 { restored, safety }` | `409 session_busy` while a run is active. |
 | `GET` | `/api/events` | `200 text/event-stream` | All sessions; operator/debug use. |
 
 Unknown routes return `404`. Wrong methods on a known route return `405` with

@@ -138,6 +138,17 @@ isolation.
 | --- | --- | --- | --- |
 | `timeoutMs` | number | `900000` | How long a tool call waits for a decision before it is declined. |
 
+## `checkpoints`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | `"auto"` \| boolean | `"auto"` | `auto` uses git when available; `false` disables snapshots. |
+| `maxFiles` | number | `20000` | Refuse to snapshot larger workspaces. |
+| `exclude` | string[] | `[]` | Extra ignore patterns, appended to `.gitignore` and the built-in list. |
+
+Snapshots live in `<storage.directory>/checkpoints` as a shadow git repository per workspace. See
+[Checkpoints and rollback](/guide/checkpoints).
+
 ## Environment variables
 
 | Variable | Overrides | Example |
@@ -152,6 +163,8 @@ isolation.
 | `KESTREL_SYSTEM_PROMPT` | `agent.systemPrompt` | `Be terse.` |
 | `KESTREL_PLUGINS` | `plugins.directories` | `plugins,examples/plugins` |
 | `KESTREL_DATA_DIR` | `storage.directory` | `/data` |
+| `KESTREL_CHECKPOINTS` | `checkpoints.enabled` | `auto` |
+| `KESTREL_CHECKPOINTS_MAX_FILES` | `checkpoints.maxFiles` | `20000` |
 | `KESTREL_AUTH_MODE` | `auth.mode` | `accounts` |
 | `KESTREL_BOOTSTRAP_TOKEN` | `auth.bootstrapToken` | first-run admin token |
 | `KESTREL_LOG_LEVEL` | logger level | `debug` |

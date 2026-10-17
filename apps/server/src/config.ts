@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import type { CheckpointsConfig } from "./checkpoints.js";
 
 export interface ServerConfig {
   host: string;
@@ -56,6 +57,7 @@ export interface KestrelConfig {
   storage: StorageConfig;
   auth: AuthConfig;
   approvals: { timeoutMs?: number };
+  checkpoints: CheckpointsConfig;
 }
 
 const DEFAULT_CONFIG: KestrelConfig = {
@@ -72,6 +74,7 @@ const DEFAULT_CONFIG: KestrelConfig = {
   storage: {},
   auth: {},
   approvals: { timeoutMs: 15 * 60_000 },
+  checkpoints: { enabled: "auto", maxFiles: 20_000 },
 };
 
 export async function loadConfig(path?: string): Promise<KestrelConfig> {
@@ -104,7 +107,14 @@ function mergeConfig(base: KestrelConfig, override: Partial<KestrelConfig>): Kes
     storage: { ...base.storage, ...override.storage },
     auth: { ...base.auth, ...override.auth, workspaces: { ...base.auth?.workspaces, ...override.auth?.workspaces } },
     approvals: { ...base.approvals, ...override.approvals },
+    checkpoints: { ...base.checkpoints, ...override.checkpoints },
   };
+}
+
+function parseSwitch(value: string | undefined): boolean | "auto" | undefined {
+  if (!value) return undefined;
+  if (value === "auto") return "auto";
+  return ["1", "true", "on", "yes"].includes(value.toLowerCase());
 }
 
 function applyEnvironment(config: KestrelConfig): KestrelConfig {
@@ -132,6 +142,13 @@ function applyEnvironment(config: KestrelConfig): KestrelConfig {
     },
     plugins: { ...config.plugins, directories: plugins ?? config.plugins.directories },
     storage: { ...config.storage, directory: env.KESTREL_DATA_DIR ?? config.storage.directory },
+    checkpoints: {
+      ...config.checkpoints,
+      enabled: parseSwitch(env.KESTREL_CHECKPOINTS) ?? config.checkpoints.enabled,
+      maxFiles: env.KESTREL_CHECKPOINTS_MAX_FILES
+        ? Number(env.KESTREL_CHECKPOINTS_MAX_FILES)
+        : config.checkpoints.maxFiles,
+    },
     auth: {
       ...config.auth,
       mode: (env.KESTREL_AUTH_MODE as AuthConfig["mode"]) ?? config.auth.mode,

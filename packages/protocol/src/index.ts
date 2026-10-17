@@ -102,6 +102,26 @@ export interface SessionDetail extends SessionSummary {
   systemPrompt?: string;
 }
 
+/** A restorable workspace snapshot taken before a run or on demand. */
+export interface CheckpointInfo {
+  id: string;
+  /** Commit in the shadow repository. */
+  sha: string;
+  label: string;
+  createdAt: string;
+  sessionId?: string;
+  /** Tracked files at the time of the snapshot. */
+  files: number;
+  changes: { added: number; modified: number; deleted: number };
+}
+
+export interface CheckpointListResponse {
+  enabled: boolean;
+  /** Why checkpoints are unavailable, when they are. */
+  reason?: string;
+  checkpoints: CheckpointInfo[];
+}
+
 export interface TenantInfo {
   id: string;
   name: string;

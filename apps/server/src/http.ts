@@ -6,6 +6,7 @@ import { PROTOCOL_VERSION, type ApiErrorBody, type ApprovalDecision, type Bootst
 import { SessionNotFoundError } from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
+import { CheckpointError } from "./checkpoints.js";
 import type { Runtime } from "./runtime.js";
 
 const VERSION = "0.1.0";
@@ -247,6 +248,41 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     return;
   }
 
+  const checkpointMatch = /^\/api\/sessions\/([^/]+)\/checkpoints(?:\/([^/]+)\/restore)?$/.exec(url.pathname);
+  if (checkpointMatch) {
+    const session = visibleSession(runtime, principal, decodeURIComponent(checkpointMatch[1]));
+    const checkpointId = checkpointMatch[2] ? decodeURIComponent(checkpointMatch[2]) : undefined;
+
+    if (!checkpointId && method === "GET") {
+      const status = await runtime.checkpoints.status();
+      json(res, 200, {
+        ...status,
+        checkpoints: status.enabled ? await runtime.checkpoints.list(session.workspace) : [],
+      });
+      return;
+    }
+    if (!checkpointId && method === "POST") {
+      const body = await readJson<{ label?: string }>(req, runtime);
+      if (body.label !== undefined && typeof body.label !== "string") {
+        throw new HttpError(400, "invalid_label", "label must be a string.");
+      }
+      const checkpoint = await runtime.checkpoints.snapshot(session.workspace, {
+        sessionId: session.id,
+        label: body.label,
+      });
+      json(res, 201, { checkpoint });
+      return;
+    }
+    if (checkpointId && method === "POST") {
+      if (session.isRunning) throw new HttpError(409, "session_busy", "Stop the run before restoring a checkpoint.");
+      const result = await runtime.checkpoints.restore(session.workspace, checkpointId);
+      session.touch();
+      json(res, 200, result);
+      return;
+    }
+    throw new HttpError(405, "method_not_allowed", "Checkpoints support GET and POST.");
+  }
+
   const sessionMatch = /^\/api\/sessions\/([^/]+)(?:\/(messages|events|cancel))?$/.exec(url.pathname);
   if (sessionMatch) {
     const id = decodeURIComponent(sessionMatch[1]);
@@ -296,6 +332,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       if (body.content.length > 200_000) {
         throw new HttpError(413, "message_too_large", "Messages are limited to 200,000 characters.");
       }
+      await snapshotBeforeRun(runtime, session, body.content);
       const { runId, done } = session.start(body.content);
       done.catch((error: unknown) => {
         runtime.logger.error("run rejected", { sessionId: id, runId, error: String(error) });
@@ -505,6 +542,26 @@ async function servePluginAsset(
   return true;
 }
 
+/**
+ * Snapshots the workspace before a user turn. Failures are logged, never fatal:
+ * an unavailable git binary must not stop the agent from working.
+ */
+async function snapshotBeforeRun(runtime: Runtime, session: AgentSession, content: string): Promise<void> {
+  if (session.parentId) return;
+  const label = content.trim().replace(/\s+/g, " ").slice(0, 72);
+  try {
+    await runtime.checkpoints.snapshot(session.workspace, {
+      sessionId: session.id,
+      label: label ? `Before: ${label}` : "Before turn",
+    });
+  } catch (error) {
+    runtime.logger.warn("checkpoint skipped", {
+      sessionId: session.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 function applyCors(runtime: Runtime, req: IncomingMessage, res: ServerResponse): void {
   const origin = req.headers.origin;
   const allowed = runtime.config.server.corsOrigins ?? ["*"];
@@ -620,11 +677,23 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
     return;
   }
   const status =
-    error instanceof HttpError ? error.status : error instanceof SessionNotFoundError ? 404 : 500;
+    error instanceof HttpError
+      ? error.status
+      : error instanceof SessionNotFoundError
+        ? 404
+        : error instanceof CheckpointError
+          ? error.status
+          : 500;
   const code =
-    error instanceof HttpError ? error.code : error instanceof SessionNotFoundError ? "session_not_found" : "internal_error";
+    error instanceof HttpError
+      ? error.code
+      : error instanceof SessionNotFoundError
+        ? "session_not_found"
+        : error instanceof CheckpointError
+          ? error.code
+          : "internal_error";
   const message =
-    error instanceof HttpError || error instanceof SessionNotFoundError
+    error instanceof HttpError || error instanceof SessionNotFoundError || error instanceof CheckpointError
       ? error.message
       : "The server hit an unexpected error. Check the server logs for details.";
   if (status >= 500) {

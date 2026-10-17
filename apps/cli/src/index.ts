@@ -26,6 +26,8 @@ Usage:
   kestrel models
   kestrel sessions
   kestrel skills [show <name>]
+  kestrel checkpoints [list <session>] [create <session> [--label L]]
+                      [restore <session> <checkpoint>]
   kestrel tenants [create <name>]
   kestrel users [create <name> [--role admin|member] [--tenant T] [--email E]]
                 [rotate <id|name>] [delete <id|name>]
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
       role: { type: "string" },
       tenant: { type: "string" },
       email: { type: "string" },
+      label: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -102,6 +105,65 @@ async function main(): Promise<void> {
         if (plugin.description) stdout.write(`  ${color.dim(plugin.description)}\n`);
         if (plugin.error) stdout.write(`  ${color.red(plugin.error)}\n`);
       }
+    } finally {
+      await runtime.shutdown();
+    }
+    return;
+  }
+
+  if (command === "checkpoints") {
+    const runtime = await createRuntime({ configPath: values.config as string | undefined });
+    try {
+      const subcommand = positionals[1] ?? "list";
+      const sessionId = positionals[2];
+      const { enabled, reason } = await runtime.checkpoints.status();
+      if (!enabled) {
+        stdout.write(color.yellow(`${reason ?? "Checkpoints are unavailable."}\n`));
+        return;
+      }
+      if (!sessionId) {
+        stdout.write(color.red("Usage: kestrel checkpoints list|create|restore <session-id> [checkpoint-id]\n"));
+        process.exitCode = 2;
+        return;
+      }
+      const session = runtime.sessions.get(sessionId);
+      if (subcommand === "list") {
+        const checkpoints = await runtime.checkpoints.list(session.workspace);
+        if (checkpoints.length === 0) {
+          stdout.write(color.dim("No checkpoints yet.\n"));
+          return;
+        }
+        for (const checkpoint of checkpoints) {
+          const change = `+${checkpoint.changes.added} ~${checkpoint.changes.modified} -${checkpoint.changes.deleted}`;
+          stdout.write(
+            `${color.bold(checkpoint.id)}  ${checkpoint.createdAt}  ${color.dim(change)}  ${checkpoint.label}\n`,
+          );
+        }
+        return;
+      }
+      if (subcommand === "create") {
+        const checkpoint = await runtime.checkpoints.snapshot(session.workspace, {
+          sessionId: session.id,
+          label: values.label as string | undefined,
+        });
+        stdout.write(`${color.green("Created")} ${checkpoint.id}  ${checkpoint.files} files\n`);
+        return;
+      }
+      if (subcommand === "restore") {
+        const checkpointId = positionals[3];
+        if (!checkpointId) {
+          stdout.write(color.red("Usage: kestrel checkpoints restore <session-id> <checkpoint-id>\n"));
+          process.exitCode = 2;
+          return;
+        }
+        const result = await runtime.checkpoints.restore(session.workspace, checkpointId);
+        stdout.write(
+          `${color.green("Restored")} ${result.restored.label}\n${color.dim(`Safety checkpoint: ${result.safety.id}\n`)}`,
+        );
+        return;
+      }
+      stdout.write(color.red(`Unknown checkpoints subcommand "${subcommand}".\n`));
+      process.exitCode = 2;
     } finally {
       await runtime.shutdown();
     }
@@ -362,6 +424,19 @@ function createPrinter(json: boolean): (event: ServerEventEnvelope["event"]) => 
   };
 }
 
+/** Best-effort snapshot; a missing git binary must not block a CLI run. */
+async function snapshotBefore(runtime: Runtime, session: { id: string; workspace: string }, input: string): Promise<void> {
+  const label = input.trim().replace(/\s+/g, " ").slice(0, 72);
+  try {
+    await runtime.checkpoints.snapshot(session.workspace, {
+      sessionId: session.id,
+      label: label ? `Before: ${label}` : "Before turn",
+    });
+  } catch (error) {
+    runtime.logger.warn("checkpoint skipped", { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 async function runOnce(runtime: Runtime, prompt: string, json: boolean): Promise<void> {
   const session = runtime.sessions.create({});
   const print = createPrinter(json);
@@ -371,6 +446,7 @@ async function runOnce(runtime: Runtime, prompt: string, json: boolean): Promise
     const text = print(event);
     if (text) stdout.write(text);
   });
+  await snapshotBefore(runtime, session, prompt);
   try {
     await session.start(prompt).done;
   } catch {
@@ -425,6 +501,7 @@ async function chatLoop(runtime: Runtime, rl: ReturnType<typeof createInterface>
       continue;
     }
     stdout.write("\n");
+    await snapshotBefore(runtime, session, trimmed);
     try {
       await session.start(trimmed).done;
     } catch (error) {

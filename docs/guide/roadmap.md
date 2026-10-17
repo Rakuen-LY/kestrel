@@ -17,6 +17,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Memory tools and Model Context Protocol bridge | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
 | Plugin UI contributions: browser bundles rendered in console slots | Done |
+| Workspace checkpoints, rewind and safety snapshots | Done |
 | Accounts, roles and tenant isolation (`auth.mode: "accounts"`) | Done |
 | CLI: serve, run, chat, plugins, models, sessions | Done |
 | Docker, Compose, Kubernetes, systemd, launchd, Windows Task | Done |
@@ -71,7 +72,8 @@ This is the largest piece of work and the one that changes the security story mo
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery
   and progressive loading ship in `@kestrel/plugin-skills`; see [Skills](/guide/skills).
 - Multimodal messages and image-producing tools.
-- Checkpoints and rollback for workspace edits.
+- ~~Checkpoints and rollback for workspace edits~~ — shipped; see [Checkpoints](/guide/checkpoints).
+  Still missing: rewind of the transcript alongside files.
 - Background tasks and scheduled runs.
 
 ### 7. Platform features

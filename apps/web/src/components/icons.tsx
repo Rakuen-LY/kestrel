@@ -83,6 +83,14 @@ export const ChevronIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const HistoryIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5" />
+    <path d="M12 8v4l3 2" />
+  </Icon>
+);
+
 export const ShieldIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 3l7 3v6c0 4.4-3 8.2-7 9-4-0.8-7-4.6-7-9V6l7-3z" />

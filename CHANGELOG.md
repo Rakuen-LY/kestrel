@@ -24,6 +24,14 @@ All notable changes to Kestrel are documented here. The format follows
   bundle and mounts its extensions into `sidebar.footer`, `session.header` and `settings.section`
   slots; token-bearing requests go through a console helper, and failures are isolated per plugin.
 - `examples/plugins/web-metrics`: an example plugin with a browser bundle.
+- Workspace checkpoints: a shadow git repository per workspace snapshots files before every turn
+  and before each `kestrel run`/`chat` message. `GET`/`POST /api/sessions/:id/checkpoints` lists and
+  captures snapshots; `POST .../checkpoints/:id/restore` rewinds after taking a safety snapshot.
+  Ignored files are preserved, workspace `.gitignore` is honoured, and snapshots are serialized per
+  workspace.
+- `kestrel checkpoints list|create|restore` and a checkpoint drawer in the console.
+- Config: `checkpoints.enabled`, `checkpoints.maxFiles`, `checkpoints.exclude`; env
+  `KESTREL_CHECKPOINTS`, `KESTREL_CHECKPOINTS_MAX_FILES`.
 
 ### Changed
 
