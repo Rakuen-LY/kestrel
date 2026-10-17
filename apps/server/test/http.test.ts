@@ -32,7 +32,13 @@ afterEach(async () => {
 });
 
 async function boot(
-  options: { turns?: ScriptedTurn[]; tools?: Tool[]; token?: string; pluginSource?: string } = {},
+  options: {
+    turns?: ScriptedTurn[];
+    tools?: Tool[];
+    token?: string;
+    pluginSource?: string;
+    pluginInject?: string[];
+  } = {},
 ): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), "kestrel-http-"));
   const workspace = join(root, "workspace");
@@ -45,7 +51,12 @@ async function boot(
     await mkdir(directory, { recursive: true });
     await writeFile(
       join(directory, "kestrel.plugin.json"),
-      JSON.stringify({ name: "@test/plugin-layer", version: "0.0.0", entry: "index.js", inject: ["prompts"] }),
+      JSON.stringify({
+        name: "@test/plugin-layer",
+        version: "0.0.0",
+        entry: "index.js",
+        inject: options.pluginInject ?? ["prompts"],
+      }),
     );
     await writeFile(join(directory, "index.js"), options.pluginSource);
   }
@@ -199,6 +210,56 @@ async function openEvents(harness: Harness, path: string, lastEventId?: number):
   clients.add(client);
   return client;
 }
+
+describe("plugin HTTP routes", () => {
+  const source = `
+    export default {
+      name: "@test/plugin-layer",
+      version: "0.0.0",
+      inject: ["http.routes"],
+      apply(context) {
+        const routes = context.get("http.routes");
+        context.effect(() => routes.route({
+          method: "POST",
+          path: "/api/echo/:id",
+          handler: (request) => ({
+            status: 201,
+            body: { id: request.params.id, body: request.body, user: request.principal?.id ?? null },
+          }),
+        }));
+        context.effect(() => routes.route({
+          method: "GET",
+          path: "/api/public/ping",
+          public: true,
+          handler: () => ({ body: { pong: true } }),
+        }));
+      },
+    };
+  `;
+
+  it("authenticates private routes and dispatches public ones without a token", async () => {
+    const harness = await boot({ pluginSource: source, pluginInject: ["http.routes"] });
+
+    const denied = await fetch(`${harness.base}/api/echo/abc`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(denied.status).toBe(401);
+
+    const echo = await fetch(`${harness.base}/api/echo/abc`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ x: 1 }),
+    });
+    expect(echo.status).toBe(201);
+    expect(await echo.json()).toMatchObject({ id: "abc", body: { x: 1 } });
+
+    const publicRoute = await fetch(`${harness.base}/api/public/ping`);
+    expect(publicRoute.status).toBe(200);
+    expect(await publicRoute.json()).toEqual({ pong: true });
+  });
+});
 
 describe("HTTP API", () => {
   it("serves health without auth and protects everything else", async () => {

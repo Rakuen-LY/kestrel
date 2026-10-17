@@ -10,12 +10,14 @@ import {
   type CreateSessionRequest,
   type HealthResponse,
   type ImageAttachment,
+  type PluginHttpRequest,
   type SendMessageRequest,
 } from "@kestrel/protocol";
 import { SessionNotFoundError } from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
 import { CheckpointError } from "./checkpoints.js";
+import type { PluginRouteMatch } from "./plugin-http.js";
 import type { Runtime } from "./runtime.js";
 
 const VERSION = "0.1.0";
@@ -90,6 +92,12 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       sessions: runtime.sessions.list().length,
     };
     json(res, 200, health);
+    return;
+  }
+
+  const pluginRoute = runtime.httpRoutes.match(method, url.pathname);
+  if (pluginRoute?.route.public) {
+    await dispatchPluginRoute(runtime, req, res, url, pluginRoute);
     return;
   }
 
@@ -399,6 +407,11 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     return;
   }
 
+  if (pluginRoute) {
+    await dispatchPluginRoute(runtime, req, res, url, pluginRoute, principal);
+    return;
+  }
+
   throw new HttpError(404, "not_found", `No route for ${method} ${url.pathname}.`);
 }
 
@@ -677,6 +690,55 @@ function requireStore(runtime: Runtime) {
     );
   }
   return store;
+}
+
+async function dispatchPluginRoute(
+  runtime: Runtime,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  match: PluginRouteMatch,
+  principal?: Principal,
+): Promise<void> {
+  const method = req.method ?? "GET";
+  const body = method === "GET" || method === "HEAD" ? undefined : await readJson<unknown>(req, runtime);
+  const headers: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(req.headers)) headers[key] = value;
+  const request: PluginHttpRequest = {
+    method,
+    path: url.pathname,
+    params: match.params,
+    query: Object.fromEntries(url.searchParams),
+    headers,
+    body,
+    principal: principal
+      ? {
+          id: principal.id,
+          name: principal.name,
+          role: principal.role,
+          tenantId: principal.tenantId,
+          email: principal.email,
+        }
+      : undefined,
+  };
+
+  let result;
+  try {
+    result = await match.route.handler(request);
+  } catch (error) {
+    throw new HttpError(
+      500,
+      "plugin_route_failed",
+      `Plugin route ${method} ${url.pathname} failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const status = result?.status ?? 200;
+  if (!Number.isInteger(status) || status < 200 || status > 599) {
+    throw new HttpError(500, "plugin_route_failed", `Plugin route returned an invalid status ${status}.`);
+  }
+  for (const [key, value] of Object.entries(result?.headers ?? {})) res.setHeader(key, value);
+  json(res, status, result?.body ?? { ok: true });
 }
 
 function authError(error: unknown): HttpError {

@@ -321,3 +321,42 @@ export const ENDPOINTS = {
     `/api/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(approvalId)}`,
   plugins: "/api/plugins",
 } as const;
+
+/**
+ * HTTP surface a plugin can contribute. The server owns authentication and
+ * body parsing; a plugin route only sees the decoded request and returns a
+ * JSON result. `public` routes are dispatched before authentication, so the
+ * handler itself must verify a secret.
+ */
+export interface PluginHttpRequest {
+  method: string;
+  path: string;
+  params: Record<string, string>;
+  query: Record<string, string>;
+  headers: Record<string, string | string[] | undefined>;
+  body: unknown;
+  principal?: PrincipalInfo;
+}
+
+export interface PluginHttpResult {
+  status?: number;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+export type PluginHttpHandler = (
+  request: PluginHttpRequest,
+) => Promise<PluginHttpResult | void> | PluginHttpResult | void;
+
+export interface HttpRouteOptions {
+  method: string;
+  /** Absolute path under `/api/`; `:name` segments become `params.name`. */
+  path: string;
+  public?: boolean;
+  handler: PluginHttpHandler;
+}
+
+export interface HttpRouteService {
+  route(options: HttpRouteOptions): () => void;
+}
+

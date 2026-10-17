@@ -16,6 +16,7 @@ import type { ApprovalRequest, PluginInfo } from "@kestrel/protocol";
 import { loadConfig, resolveDataDirectory, resolveWorkspace, type KestrelConfig } from "./config.js";
 import { createAuthService, tenantWorkspace, type AuthService } from "./auth.js";
 import { CheckpointService } from "./checkpoints.js";
+import { PluginHttpRouter } from "./plugin-http.js";
 import { EventHub } from "./events.js";
 
 export class ApprovalBroker {
@@ -90,6 +91,7 @@ export interface Runtime {
   approvals: ApprovalBroker;
   auth: AuthService;
   checkpoints: CheckpointService;
+  httpRoutes: PluginHttpRouter;
   /** Root directory a tenant's sessions may use by default. */
   workspaceFor(tenantId: string): string;
   pluginInfos: PluginInfo[];
@@ -130,6 +132,9 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     config: config.checkpoints,
     logger: logger.child({ component: "checkpoints" }),
   });
+
+  const httpRoutes = new PluginHttpRouter();
+  context.provide("http.routes", httpRoutes);
 
   const sessions = new SessionManager({
     models,
@@ -199,6 +204,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     approvals,
     auth,
     checkpoints,
+    httpRoutes,
     workspaceFor: (tenantId) => tenantWorkspace(config, dataDirectory, tenantId, workspace),
     pluginInfos,
     startedAt: Date.now(),

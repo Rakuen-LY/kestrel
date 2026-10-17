@@ -91,7 +91,8 @@ This is the largest piece of work and the one that changes the security story mo
 - Plugin registry with signatures and provenance.
 - OIDC and SSO on top of the accounts model; per-tenant quotas and usage accounting.
 - Metrics (OpenTelemetry) and an audit log of tool executions.
-- Scheduled and event-triggered runs (webhooks, file watchers).
+- ~~Scheduled and event-triggered runs~~ — webhooks and UTC cron schedules ship in
+  `@kestrel/plugin-triggers`; file watchers and durable delivery history are still open.
 
 ## Later
 

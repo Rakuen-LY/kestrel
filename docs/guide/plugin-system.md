@@ -132,6 +132,7 @@ a feature.
 | `memory` | `@kestrel/plugin-memory` | Durable workspace notes. |
 | `mcp` | `@kestrel/plugin-mcp` | Connected MCP servers and their tools. |
 | `subagents` | `@kestrel/plugin-subagents` | Delegation roles and the running subagent set. |
+| `http.routes` | `@kestrel/server` | Register extra JSON endpoints under `/api/`. |
 
 ### Prompt layers
 

@@ -197,6 +197,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/protocol
 
+  plugins/triggers:
+    dependencies:
+      '@kestrel/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@kestrel/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@kestrel/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+
 packages:
 
   '@algolia/abtesting@1.26.0':

@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-triggers",
+  "version": "0.1.0",
+  "description": "Start runs from HTTP webhooks and UTC cron schedules.",
+  "entry": "dist/index.js",
+  "inject": ["sessions", "http.routes"],
+  "config": {
+    "webhooks": {},
+    "schedules": [],
+    "tickMs": 30000
+  }
+}
