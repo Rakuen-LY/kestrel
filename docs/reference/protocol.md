@@ -18,7 +18,7 @@ mobile client. The server, console and CLI all use these types.
 | `GET` | `/api/sessions/:id` | `200 { session: SessionDetail }` | |
 | `PATCH` | `/api/sessions/:id` | `200 { session: SessionDetail }` | `title`, `model`, `systemPrompt`. |
 | `DELETE` | `/api/sessions/:id` | `204` | Removes the transcript. |
-| `POST` | `/api/sessions/:id/messages` | `202 { runId }` | Body `{ "content": "..." }`. |
+| `POST` | `/api/sessions/:id/messages` | `202 { runId }` | Body `SendMessageRequest`; text, images or both. |
 | `POST` | `/api/sessions/:id/cancel` | `200 { cancelled: boolean }` | Idempotent. |
 | `GET` | `/api/sessions/:id/events` | `200 text/event-stream` | Session-scoped stream. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | `200 { resolved: true }` | Body `{ "approved": boolean, "note"?: string }`. |
@@ -40,12 +40,26 @@ interface CreateSessionRequest {
   workspace?: string;     // absolute path; defaults to config.agent.workspace
 }
 
-interface SendMessageRequest { content: string }          // 1..200_000 chars
+interface SendMessageRequest {
+  content: string;          // 0..200_000 chars; may be empty when images are present
+  images?: ImageAttachment[];
+}
+
+interface ImageAttachment {
+  mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  data: string;             // base64, without the `data:` prefix
+  name?: string;            // display label, at most 120 chars
+}
+
 interface ApprovalDecision { approved: boolean; note?: string }
 ```
 
 `POST /api/sessions/:id/messages` returns `409 session_busy` while a run is active. It does not
 queue: the client waits for `run.finished` and sends the next message.
+
+A message must carry text, images or both. Limits: at most 6 images, 4 MB each, 12 MB in total.
+A `data:` prefix is accepted and stripped, so a browser can post `FileReader` output unchanged.
+Invalid base64 or an unsupported `mimeType` answers `400 invalid_images`; oversize answers `413`.
 
 ## Responses
 
@@ -190,6 +204,7 @@ interface ChatMessage {
   id: string;
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  images?: ImageAttachment[];
   reasoning?: string;
   toolCalls?: ToolCall[];
   toolCallId?: string;

@@ -19,6 +19,7 @@ interface Harness {
 const cleanups: Array<() => Promise<void>> = [];
 const clients = new Set<SseClient>();
 const TOKEN = "test-token";
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+4wAAAABJRU5ErkJggg==";
 
 beforeAll(() => {
   process.env.KESTREL_LOG_LEVEL ??= "silent";
@@ -384,6 +385,67 @@ describe("HTTP API", () => {
     const response = await fetch(`${harness.base}/api/sessions/${id}`, { headers: headers() });
     const payload = (await response.json()) as { session: { systemPrompt: string } };
     expect(payload.session.systemPrompt).toContain("integration layer active");
+  });
+
+  it("stores image attachments and strips the data URL prefix", async () => {
+    const harness = await boot({ turns: [{ content: "a white pixel" }] });
+    const id = await createSession(harness);
+    const sent = await fetch(`${harness.base}/api/sessions/${id}/messages`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        content: "what is this?",
+        images: [{ mimeType: "image/png", data: `data:image/png;base64,${PNG}`, name: "dot.png" }],
+      }),
+    });
+    expect(sent.status).toBe(202);
+    const detail = await waitForIdle(harness, id);
+    const messages = detail.messages as Array<{ role: string; images?: Array<Record<string, string>> }>;
+    expect(messages[0].images).toEqual([{ mimeType: "image/png", data: PNG, name: "dot.png" }]);
+    expect(messages[0].images?.[0].data).not.toContain("data:");
+  });
+
+  it("accepts a message made only of images", async () => {
+    const harness = await boot({ turns: [{ content: "seen" }] });
+    const id = await createSession(harness);
+    const sent = await fetch(`${harness.base}/api/sessions/${id}/messages`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ content: "", images: [{ mimeType: "image/png", data: PNG }] }),
+    });
+    expect(sent.status).toBe(202);
+    const detail = await waitForIdle(harness, id);
+    const messages = detail.messages as Array<{ role: string; content: string; images?: unknown[] }>;
+    expect(messages[0].content).toBe("");
+    expect(messages[0].images).toHaveLength(1);
+  });
+
+  it("rejects malformed attachments", async () => {
+    const harness = await boot();
+    const id = await createSession(harness);
+    const post = (images: unknown[]) =>
+      fetch(`${harness.base}/api/sessions/${id}/messages`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ content: "look", images }),
+      });
+
+    const badBase64 = await post([{ mimeType: "image/png", data: "not base64!" }]);
+    expect(badBase64.status).toBe(400);
+    expect(((await badBase64.json()) as { error: { code: string } }).error.code).toBe("invalid_images");
+
+    const badMime = await post([{ mimeType: "image/svg+xml", data: PNG }]);
+    expect(badMime.status).toBe(400);
+
+    const tooMany = await post(Array.from({ length: 7 }, () => ({ mimeType: "image/png", data: PNG })));
+    expect(tooMany.status).toBe(413);
+
+    const empty = await fetch(`${harness.base}/api/sessions/${id}/messages`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ content: "   " }),
+    });
+    expect(empty.status).toBe(400);
   });
 
   it("requires a token for session-scoped streams", async () => {

@@ -76,7 +76,9 @@ This is the largest piece of work and the one that changes the security story mo
   [Long sessions](/guide/models#long-sessions-and-compaction).
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery
   and progressive loading ship in `@kestrel/plugin-skills`; see [Skills](/guide/skills).
-- Multimodal messages and image-producing tools.
+- ~~Multimodal user messages~~ — images ship in the console and the API; see
+  [Images](/guide/models#images). Still missing: image-producing tools and attachments on tool
+  results.
 - ~~Checkpoints and rollback for workspace edits~~ — shipped; see [Checkpoints](/guide/checkpoints).
   Still missing: rewind of the transcript alongside files.
 - Background tasks and scheduled runs.

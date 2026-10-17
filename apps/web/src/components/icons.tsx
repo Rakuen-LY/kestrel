@@ -58,6 +58,12 @@ export const TrashIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const AttachIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9" />
+  </Icon>
+);
+
 export const CloseIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M6 6l12 12M18 6L6 18" />

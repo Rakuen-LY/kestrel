@@ -257,6 +257,14 @@ function parseArguments(raw: string): Record<string, unknown> {
 }
 
 function toWireMessage(message: ChatMessage): Record<string, unknown> {
+  if (message.role === "user" && message.images?.length) {
+    const parts: Array<Record<string, unknown>> = [];
+    if (message.content) parts.push({ type: "text", text: message.content });
+    for (const image of message.images) {
+      parts.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } });
+    }
+    return { role: "user", content: parts };
+  }
   if (message.role === "tool") {
     return { role: "tool", tool_call_id: message.toolCallId ?? "", content: message.content };
   }

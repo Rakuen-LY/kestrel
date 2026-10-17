@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ChatMessage, ToolCall, ToolResult } from "@kestrel/protocol";
+import { imageSrc } from "../images.js";
 import { Markdown } from "./Markdown.js";
 import { ToolCallCard } from "./ToolCall.js";
 import { CheckIcon, ChevronIcon, CopyIcon } from "./icons.js";
@@ -71,13 +72,28 @@ export function MessageBubble({
             ))}
           </div>
         )}
+        {message.images?.length ? (
+          <div className={`message-images${message.images.length === 1 ? " single" : ""}`}>
+            {message.images.map((image, index) => (
+              <a
+                key={`${image.mimeType}-${index}`}
+                href={imageSrc(image)}
+                target="_blank"
+                rel="noreferrer"
+                title={image.name ?? "Open image"}
+              >
+                <img src={imageSrc(image)} alt={image.name ?? `attachment ${index + 1}`} loading="lazy" />
+              </a>
+            ))}
+          </div>
+        ) : null}
         {message.content ? (
           message.role === "user" ? (
             <div className="user-text">{message.content}</div>
           ) : (
             <Markdown>{message.content}</Markdown>
           )
-        ) : (
+        ) : message.images?.length ? null : (
           <div className="typing" aria-label="Kestrel is thinking">
             <span />
             <span />

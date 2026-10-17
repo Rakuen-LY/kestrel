@@ -1,6 +1,7 @@
 import type {
   ApprovalRequest,
   ChatMessage,
+  ImageAttachment,
   SessionDetail,
   SessionEvent,
   SessionStatus,
@@ -200,16 +201,17 @@ export class AgentSession {
     this.touch();
   }
 
-  start(input: string): { runId: string; done: Promise<RunResult> } {
+  start(input: string, options: { images?: ImageAttachment[] } = {}): { runId: string; done: Promise<RunResult> } {
     if (this.activeRun) throw new Error("This session already has an active run.");
     const content = input.trim();
-    if (!content) throw new Error("Message content cannot be empty.");
+    const images = options.images?.length ? options.images : undefined;
+    if (!content && !images) throw new Error("Message content cannot be empty.");
 
     if (this.messageList.length === 0 && (this._title === "New session" || !this._title)) {
-      this._title = titleFromInput(content);
+      this._title = titleFromInput(content || images?.[0]?.name || "Image");
     }
 
-    const userMessage = createMessage("user", content);
+    const userMessage = createMessage("user", content, images ? { images } : {});
     this.messageList.push(userMessage);
     this.emit({ type: "message.completed", sessionId: this.id, message: { ...userMessage } });
 
@@ -600,9 +602,13 @@ function isCancellation(error: unknown, signal: AbortSignal): boolean {
   return error instanceof RunCancelledError || (error instanceof Error && error.name === "AbortError");
 }
 
+/** Vision models bill roughly a thousand tokens per image; keep estimates honest. */
+const TOKENS_PER_IMAGE = 1_100;
+
 function messageTokens(message: ChatMessage): number {
   const tools = message.toolCalls ? JSON.stringify(message.toolCalls) : "";
-  return estimateTokens(`${message.content}${message.reasoning ?? ""}${tools}`) + 4;
+  const images = (message.images?.length ?? 0) * TOKENS_PER_IMAGE;
+  return estimateTokens(`${message.content}${message.reasoning ?? ""}${tools}`) + images + 4;
 }
 
 function transcriptForSummary(messages: ChatMessage[]): string {
@@ -617,7 +623,12 @@ function transcriptForSummary(messages: ChatMessage[]): string {
       : message.content;
     const suffix = calls?.length ? ` [called ${calls.join(", ")}]` : "";
     const name = message.toolName ? ` ${message.toolName}` : "";
-    lines.push(`${message.role}${name}: ${body}${suffix}`);
+    const images = message.images?.length
+      ? ` [${message.images.length} image${message.images.length === 1 ? "" : "s"} attached: ${message.images
+          .map((image) => image.name ?? image.mimeType)
+          .join(", ")}]`
+      : "";
+    lines.push(`${message.role}${name}: ${body}${images}${suffix}`);
   }
   const transcript = lines.join("\n\n");
   return transcript.length > COMPACTION_INPUT_CHARS

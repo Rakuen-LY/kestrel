@@ -32,6 +32,10 @@ All notable changes to Kestrel are documented here. The format follows
 - `kestrel checkpoints list|create|restore` and a checkpoint drawer in the console.
 - Config: `checkpoints.enabled`, `checkpoints.maxFiles`, `checkpoints.exclude`; env
   `KESTREL_CHECKPOINTS`, `KESTREL_CHECKPOINTS_MAX_FILES`.
+- Multimodal input: user messages may carry up to six images (PNG, JPEG, WebP, GIF). The console
+  offers paperclip, paste and drag-and-drop with client-side downscaling; the HTTP API validates and
+  strips `data:` prefixes; the OpenAI-compatible provider emits `image_url` content parts, and the
+  token estimator charges images against the context window.
 - MCP: streamable HTTP transport alongside stdio, with `Mcp-Session-Id` handling, automatic
   re-initialization on expiry, `${ENV_VAR}` expansion in headers and a transport-neutral
   `McpClient` interface. Config reference and a dedicated guide added.

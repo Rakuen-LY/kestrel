@@ -172,3 +172,36 @@ the provider reports usage, so leave headroom below `1.0`.
 
 Compaction edits history, checkpoints edit files. They are independent: restoring a checkpoint does
 not rewind the transcript, and compaction does not touch the workspace.
+
+## Images
+
+A user message may carry images alongside text. The console accepts them with the paperclip, a
+paste or a drop; the API takes base64-encoded attachments:
+
+```json
+{
+  "content": "Which component renders the sidebar?",
+  "images": [{ "mimeType": "image/png", "data": "iVBORw0KGgo...", "name": "screenshot.png" }]
+}
+```
+
+The provider serializes them as OpenAI-style content parts:
+
+```json
+{ "role": "user", "content": [
+  { "type": "text", "text": "Which component renders the sidebar?" },
+  { "type": "image_url", "image_url": { "url": "data:image/png;base64,iVBORw0KGgo..." } }
+] }
+```
+
+Text-only messages stay plain strings, so endpoints that do not support parts keep working.
+
+Limits, enforced by the server: PNG, JPEG, WebP or GIF; at most 6 images; 4 MB each; 12 MB total.
+The browser downscales photographs to a 1568 px long edge before uploading, which keeps requests
+under provider limits without visible quality loss. GIFs are sent untouched so animation survives,
+and a `data:` prefix is accepted and stripped.
+
+Images count against the context window — the estimator charges 1100 tokens each — so screenshots
+are compacted away with the turns that carried them. Not every model accepts images: a text-only
+endpoint will usually answer `400`. Pick a vision-capable model in the session header when
+attaching them. The CLI has no attachment flags yet; use the HTTP API or the console.

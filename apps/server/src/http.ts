@@ -2,7 +2,16 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, resolve, sep } from "node:path";
-import { PROTOCOL_VERSION, type ApiErrorBody, type ApprovalDecision, type BootstrapResponse, type CreateSessionRequest, type HealthResponse, type SendMessageRequest } from "@kestrel/protocol";
+import {
+  PROTOCOL_VERSION,
+  type ApiErrorBody,
+  type ApprovalDecision,
+  type BootstrapResponse,
+  type CreateSessionRequest,
+  type HealthResponse,
+  type ImageAttachment,
+  type SendMessageRequest,
+} from "@kestrel/protocol";
 import { SessionNotFoundError } from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
@@ -10,6 +19,12 @@ import { CheckpointError } from "./checkpoints.js";
 import type { Runtime } from "./runtime.js";
 
 const VERSION = "0.1.0";
+
+const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const MAX_IMAGES = 6;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 12 * 1024 * 1024;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 class HttpError extends Error {
   constructor(
@@ -326,14 +341,18 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     if (action === "messages" && method === "POST") {
       if (session.isRunning) throw new HttpError(409, "session_busy", "This session already has an active run.");
       const body = await readJson<SendMessageRequest>(req, runtime);
-      if (typeof body.content !== "string" || !body.content.trim()) {
-        throw new HttpError(400, "invalid_message", "content must be a non-empty string.");
+      if (typeof body.content !== "string") {
+        throw new HttpError(400, "invalid_message", "content must be a string.");
       }
       if (body.content.length > 200_000) {
         throw new HttpError(413, "message_too_large", "Messages are limited to 200,000 characters.");
       }
-      await snapshotBeforeRun(runtime, session, body.content);
-      const { runId, done } = session.start(body.content);
+      const images = normalizeImages(body.images);
+      if (!body.content.trim() && images.length === 0) {
+        throw new HttpError(400, "invalid_message", "content or images are required.");
+      }
+      await snapshotBeforeRun(runtime, session, body.content || `image: ${images[0]?.name ?? images[0]?.mimeType}`);
+      const { runId, done } = session.start(body.content, { images });
       done.catch((error: unknown) => {
         runtime.logger.error("run rejected", { sessionId: id, runId, error: String(error) });
       });
@@ -546,6 +565,43 @@ async function servePluginAsset(
  * Snapshots the workspace before a user turn. Failures are logged, never fatal:
  * an unavailable git binary must not stop the agent from working.
  */
+/** Validates attachments and drops any `data:` prefix so storage stays plain base64. */
+function normalizeImages(input: unknown): ImageAttachment[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new HttpError(400, "invalid_images", "images must be an array.");
+  if (input.length > MAX_IMAGES) {
+    throw new HttpError(413, "too_many_images", `Attach at most ${MAX_IMAGES} images per message.`);
+  }
+  let total = 0;
+  return input.map((value, index) => {
+    if (!value || typeof value !== "object") {
+      throw new HttpError(400, "invalid_images", `images[${index}] must be an object.`);
+    }
+    const { mimeType, data, name } = value as Record<string, unknown>;
+    if (typeof mimeType !== "string" || !IMAGE_MIME.has(mimeType)) {
+      throw new HttpError(400, "invalid_images", `images[${index}].mimeType must be one of ${[...IMAGE_MIME].join(", ")}.`);
+    }
+    if (typeof data !== "string") {
+      throw new HttpError(400, "invalid_images", `images[${index}].data must be base64 text.`);
+    }
+    const base64 = data.replace(/^data:[^;,]+;base64,/, "");
+    if (!base64.length || base64.length % 4 !== 0 || !BASE64.test(base64)) {
+      throw new HttpError(400, "invalid_images", `images[${index}].data is not valid base64.`);
+    }
+    const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+    const bytes = (base64.length / 4) * 3 - padding;
+    if (bytes > MAX_IMAGE_BYTES) {
+      throw new HttpError(413, "image_too_large", `images[${index}] exceeds ${MAX_IMAGE_BYTES} bytes.`);
+    }
+    total += bytes;
+    if (total > MAX_TOTAL_IMAGE_BYTES) {
+      throw new HttpError(413, "images_too_large", `Attachments exceed ${MAX_TOTAL_IMAGE_BYTES} bytes in total.`);
+    }
+    const label = typeof name === "string" && name.trim() ? name.trim().slice(0, 120) : undefined;
+    return label ? { mimeType, data: base64, name: label } : { mimeType, data: base64 };
+  });
+}
+
 async function snapshotBeforeRun(runtime: Runtime, session: AgentSession, content: string): Promise<void> {
   if (session.parentId) return;
   const label = content.trim().replace(/\s+/g, " ").slice(0, 72);

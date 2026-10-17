@@ -5,6 +5,7 @@ import type {
   CheckpointListResponse,
   CreateSessionRequest,
   HealthResponse,
+  ImageAttachment,
   PluginInfo,
   ServerEventEnvelope,
   SessionDetail,
@@ -197,10 +198,10 @@ export class KestrelApi {
     return this.request(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
-  sendMessage(id: string, content: string): Promise<{ runId: string }> {
+  sendMessage(id: string, content: string, images: ImageAttachment[] = []): Promise<{ runId: string }> {
     return this.request(`/api/sessions/${encodeURIComponent(id)}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(images.length ? { content, images } : { content }),
     });
   }
 

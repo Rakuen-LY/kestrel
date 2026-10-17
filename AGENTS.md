@@ -114,3 +114,9 @@ never contains agent logic.
   re-initializes once on `404`/`410`; `${ENV_VAR}` in headers expands and empty headers are dropped
   so a missing token fails instead of sending `Authorization: `. Tool names are
   `mcp__<server>__<tool>`; a failing server is logged and skipped, never fatal.
+- Image attachments travel as base64 inside the message (`ImageAttachment`), never as URLs the
+  server must fetch. The server enforces 6 images / 4 MB each / 12 MB total and strips `data:`
+  prefixes; the browser downscales photographs to a 1568 px edge but leaves GIFs alone. Providers
+  that support vision serialize user parts; text-only messages remain plain strings so endpoints
+  without parts keep working. `estimateTokens` charges 1100 tokens per image, and the compaction
+  transcript renders image names only — never base64.

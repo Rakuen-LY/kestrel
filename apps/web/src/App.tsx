@@ -271,7 +271,8 @@ export default function App() {
               ? "Ask Kestrel to inspect, change or run something…"
               : "Start a new session by describing a task…"
           }
-          onSend={(value) => actions.send(value)}
+          onSend={(value, images) => actions.send(value, images)}
+          onError={(message) => actions.reportError(message)}
           onCancel={() => actions.cancel()}
         />
       </main>

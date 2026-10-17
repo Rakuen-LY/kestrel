@@ -51,7 +51,7 @@ at the API endpoint. No desktop-specific API exists to port.
 | Sidebar | Session list, new session, connection state, mobile drawer toggle. |
 | Header | Session title (click to rename), status, settings. |
 | Thread | User and assistant messages, markdown, reasoning trace, tool cards and diffs. |
-| Composer | Multi-line input, send on Enter, cancel while a run is active. |
+| Composer | Multi-line input, send on Enter, cancel while a run is active, image attachments via paperclip, paste or drop. |
 | Settings drawer | Endpoint, token, model, workspace, system prompt, plugins and tools. |
 | Approval dialog | Blocking prompt for tools configured with `permission: "ask"`. |
 

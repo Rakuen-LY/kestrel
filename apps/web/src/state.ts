@@ -3,6 +3,7 @@ import type {
   ApprovalRequest,
   BootstrapResponse,
   ChatMessage,
+  ImageAttachment,
   SessionDetail,
   SessionEvent,
   SessionSummary,
@@ -190,7 +191,7 @@ export interface KestrelActions {
   signOut(): void;
   select(id?: string): void;
   createSession(input?: { title?: string }): Promise<string | undefined>;
-  send(content: string): Promise<void>;
+  send(content: string, images?: ImageAttachment[]): Promise<void>;
   cancel(): Promise<void>;
   remove(id: string): Promise<void>;
   rename(id: string, title: string): Promise<void>;
@@ -199,6 +200,7 @@ export interface KestrelActions {
   approve(approvalId: string, approved: boolean): Promise<void>;
   refresh(): Promise<void>;
   dismissError(): void;
+  reportError(message: string): void;
 }
 
 export function useKestrel(): { state: UiState; actions: KestrelActions; api: KestrelApi } {
@@ -314,18 +316,19 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
           return undefined;
         }
       },
-      async send(content) {
+      async send(content, images = []) {
         const text = content.trim();
-        if (!text) return;
+        if (!text && images.length === 0) return;
         try {
           let id = activeRef.current;
           if (!id) {
-            const { session } = await api.createSession({ title: text.slice(0, 60) });
+            const title = text.slice(0, 60) || images[0]?.name || "Image";
+            const { session } = await api.createSession({ title });
             id = session.id;
             dispatch({ type: "select", id });
             await refreshSessions();
           }
-          await api.sendMessage(id, text);
+          await api.sendMessage(id, text, images);
         } catch (error) {
           fail(error);
         }
@@ -389,6 +392,9 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
       refresh,
       dismissError() {
         dispatch({ type: "error", error: undefined });
+      },
+      reportError(message: string) {
+        dispatch({ type: "error", error: { message } });
       },
     }),
     [api, fail, refresh, refreshSessions, state.sessions, state.detail],

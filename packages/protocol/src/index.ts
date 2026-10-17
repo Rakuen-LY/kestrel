@@ -51,10 +51,22 @@ export interface ToolResult {
 
 export type MessageRole = "system" | "user" | "assistant" | "tool";
 
+/**
+ * An image attached to a user message. `data` is base64 without the
+ * `data:` URL prefix; clients use `mimeType` to rebuild it.
+ */
+export interface ImageAttachment {
+  mimeType: string;
+  data: string;
+  name?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
+  /** Images the user attached; only user messages carry them today. */
+  images?: ImageAttachment[];
   /** Provider-native reasoning trace, when the model exposes one. */
   reasoning?: string;
   toolCalls?: ToolCall[];
@@ -248,6 +260,8 @@ export interface CreateSessionRequest {
 
 export interface SendMessageRequest {
   content: string;
+  /** Images to attach; a message may consist of images alone. */
+  images?: ImageAttachment[];
 }
 
 export interface ApprovalDecision {
