@@ -72,6 +72,16 @@ never contains agent logic.
 - `AgentSession.callModel` races the provider call against the abort signal; a hung provider must not
   leave a session stuck in `running`.
 
+- Authentication is a server concern, not a plugin: `apps/server/src/auth.ts` owns modes, users,
+  tenants and token hashing. The plugin context never sees credentials. Keep it that way.
+- Tenant scoping is applied at the HTTP edge (`principal.tenantId`) and carried by
+  `AgentSession.tenantId`; subagents inherit it in `SessionManager.createSubagent`. Anything that
+  creates a session outside the manager must set `tenantId` explicitly.
+- `FileSessionStore` maps the default tenant to the v0.1 `<data>/sessions` path and other tenants to
+  `<data>/tenants/<id>/sessions`. Do not "tidy" this into a uniform layout without a migration.
+- Cross-tenant reads answer `404`, not `403`, so ids cannot be enumerated. Keep that convention for
+  new session routes.
+
 ## Gotchas
 
 - `apps/server/src/main.ts` exports `main()`; only `src/bin.ts` is an executable entry. Do not add a
@@ -83,5 +93,7 @@ never contains agent logic.
   `GET /api/sessions/:id`.
 - Event, session and approval state are process-local; run one server replica.
 - `server.token` empty disables authentication; `/api/health` and static files are always public.
+- Accounts mode fails fast when there are no users: bootstrap with `KESTREL_BOOTSTRAP_TOKEN` or
+  `kestrel users create`. Tokens are hashed with SHA-256 and never recoverable; rotate instead.
 - The web console is served from `apps/web/dist` (config `server.webRoot`); without it the server
   returns a small JSON notice at `/`.

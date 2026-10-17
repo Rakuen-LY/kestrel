@@ -136,6 +136,14 @@ export class KestrelApi {
     return this.request("/api/bootstrap");
   }
 
+  me(): Promise<{
+    principal: { id: string; name: string; role: string; tenantId: string; email?: string };
+    tenant: { id: string; name: string };
+    mode: "none" | "token" | "accounts";
+  }> {
+    return this.request("/api/auth/me");
+  }
+
   plugins(): Promise<{ plugins: PluginInfo[] }> {
     return this.request("/api/plugins");
   }

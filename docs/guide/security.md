@@ -16,14 +16,18 @@ In scope:
 Out of scope for the current release:
 
 - A determined attacker with code execution inside the process. Plugins are not sandboxed.
-- Multi-tenant isolation between users. There is one token and one workspace per process.
+- Isolation between tenants that share one process. Accounts mode scopes sessions, workspaces and
+  event streams per tenant, but every tenant still runs the same plugins in the same process and a
+  platform administrator can read every tenant. Deploy one server per trust boundary if that is not
+  enough; see [Authentication and tenants](/guide/authentication).
 - Kernel-level escapes from the container you choose to run.
 
 ## Exposure checklist
 
 Before binding to anything other than loopback:
 
-1. Set `KESTREL_TOKEN` to a long random value. Without it the API is unauthenticated.
+1. Require a credential: `KESTREL_TOKEN` for a single operator, or `auth.mode: "accounts"` with
+   per-user tokens. Without either the API is unauthenticated.
 2. Terminate TLS at a proxy; do not send bearer tokens over plain HTTP.
 3. Set explicit `corsOrigins`; the default `*` is for local development.
 4. Keep the console behind the same proxy. It is a static client, not an auth boundary.

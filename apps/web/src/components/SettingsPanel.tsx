@@ -14,6 +14,7 @@ export function SettingsPanel({
   onClose,
   onSaveToken,
   onSaveEndpoint,
+  onSignOut,
   actions,
 }: {
   open: boolean;
@@ -25,6 +26,7 @@ export function SettingsPanel({
   onClose: () => void;
   onSaveToken: (token: string) => void;
   onSaveEndpoint: (endpoint: string) => void;
+  onSignOut: () => void;
   actions: KestrelActions;
 }) {
   const [prompt, setPrompt] = useState(detail?.systemPrompt ?? "");
@@ -59,6 +61,25 @@ export function SettingsPanel({
         </header>
 
         <div className="drawer-body">
+          {bootstrap?.principal && (
+            <section className="settings-section">
+              <h3>Account</h3>
+              <dl className="kv">
+                <dt>User</dt>
+                <dd>{bootstrap.principal.name}</dd>
+                <dt>Role</dt>
+                <dd>{bootstrap.principal.role}</dd>
+                <dt>Tenant</dt>
+                <dd>{bootstrap.tenant?.name ?? bootstrap.principal.tenantId}</dd>
+              </dl>
+              {hasToken && (
+                <button type="button" className="button small" onClick={onSignOut}>
+                  Sign out
+                </button>
+              )}
+            </section>
+          )}
+
           <section className="settings-section">
             <h3>Server</h3>
             <dl className="kv">

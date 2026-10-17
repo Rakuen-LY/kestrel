@@ -31,6 +31,8 @@ export interface UiState {
   busy: boolean;
   connection: Connection;
   loading: boolean;
+  /** The server rejected the stored credentials; the UI shows a sign-in screen. */
+  unauthorized: boolean;
   error?: { message: string; code?: string };
 }
 
@@ -42,6 +44,7 @@ const initialState: UiState = {
   busy: false,
   connection: "connecting",
   loading: true,
+  unauthorized: false,
 };
 
 type Action =
@@ -52,6 +55,7 @@ type Action =
   | { type: "event"; event: SessionEvent }
   | { type: "connection"; connection: Connection }
   | { type: "loading"; loading: boolean }
+  | { type: "unauthorized"; value: boolean }
   | { type: "error"; error?: { message: string; code?: string } }
   | { type: "reset" };
 
@@ -88,6 +92,8 @@ function reducer(state: UiState, action: Action): UiState {
       return { ...state, connection: action.connection };
     case "loading":
       return { ...state, loading: action.loading };
+    case "unauthorized":
+      return { ...state, unauthorized: action.value };
     case "error":
       return { ...state, error: action.error };
     case "reset":
@@ -179,6 +185,8 @@ function applyEvent(state: UiState, event: SessionEvent): UiState {
 }
 
 export interface KestrelActions {
+  signIn(token: string): Promise<boolean>;
+  signOut(): void;
   select(id?: string): void;
   createSession(input?: { title?: string }): Promise<string | undefined>;
   send(content: string): Promise<void>;
@@ -225,6 +233,10 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
       dispatch({ type: "loading", loading: false });
     } catch (error) {
       dispatch({ type: "loading", loading: false });
+      if (error instanceof ApiError && error.status === 401) {
+        dispatch({ type: "unauthorized", value: true });
+        return;
+      }
       fail(error);
     }
   }, [api, fail]);
@@ -262,6 +274,24 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
 
   const actions = useMemo<KestrelActions>(
     () => ({
+      async signIn(token: string) {
+        api.setToken(token);
+        try {
+          await api.me();
+        } catch {
+          api.setToken("");
+          return false;
+        }
+        dispatch({ type: "unauthorized", value: false });
+        dispatch({ type: "loading", loading: true });
+        await refresh();
+        return true;
+      },
+      signOut() {
+        api.setToken("");
+        dispatch({ type: "reset" });
+        dispatch({ type: "unauthorized", value: true });
+      },
       select(id) {
         if (id === activeRef.current) return;
         dispatch({ type: "select", id });

@@ -11,8 +11,10 @@ pnpm build:web
 KESTREL_TOKEN="$(openssl rand -hex 24)" pnpm start
 ```
 
-Open `http://127.0.0.1:7331` and paste the token into **Settings → Server → Access token**. The
-token is kept in `localStorage` and sent as a bearer header; it is never written to a cookie.
+Open `http://127.0.0.1:7331`. Without a stored token against a protected server, the console shows a
+sign-in screen; in `accounts` mode each user signs in with their own token. The token is kept in
+`localStorage` and sent as a bearer header; it is never written to a cookie. **Settings → Account**
+shows the current user, role and tenant, and offers **Sign out**.
 
 If the server runs without a token, the console connects immediately. When the API is on another
 origin, set `server.corsOrigins` and serve the console separately:

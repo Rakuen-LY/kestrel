@@ -67,7 +67,7 @@ export class SessionManager {
     if (!this.options.store) return;
     const summaries = await this.options.store.list();
     for (const summary of summaries) {
-      const detail = await this.options.store.load(summary.id);
+      const detail = await this.options.store.load(summary.id, summary.tenantId);
       if (!detail) continue;
       this.instantiate(detail);
     }
@@ -89,7 +89,7 @@ export class SessionManager {
     }
   }
 
-  create(request: CreateSessionRequest = {}): AgentSession {
+  create(request: CreateSessionRequest = {}, tenantId?: string): AgentSession {
     const id = randomUUID();
     const workspace = request.workspace ?? this.options.defaultWorkspace;
     const model = request.model ?? this.defaultModel();
@@ -100,11 +100,12 @@ export class SessionManager {
         title: request.title?.trim() || "New session",
         workspace,
         model,
+        tenantId,
         systemPrompt: this.renderPrompt(basePrompt, workspace, id),
       }),
     );
     this.sessions.set(id, session);
-    this.options.logger.info("session created", { sessionId: id, model, workspace });
+    this.options.logger.info("session created", { sessionId: id, model, workspace, tenantId: tenantId ?? "default" });
     session.touch();
     return session;
   }
@@ -139,6 +140,7 @@ export class SessionManager {
         title: title.slice(0, 200),
         workspace,
         model,
+        tenantId: parent.tenantId,
         systemPrompt: this.renderPrompt(basePrompt, workspace, id, depth, options.role),
         parentId: parent.id,
         depth,
@@ -170,8 +172,10 @@ export class SessionManager {
     return this.sessions.has(id);
   }
 
-  list(): SessionSummary[] {
+  /** Summaries, optionally scoped to one tenant. */
+  list(tenantId?: string): SessionSummary[] {
     return [...this.sessions.values()]
+      .filter((session) => !tenantId || (session.tenantId ?? "default") === tenantId)
       .map((session) => session.summary())
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
@@ -188,7 +192,7 @@ export class SessionManager {
     const session = this.get(id);
     session.cancel();
     this.sessions.delete(id);
-    await this.options.store?.delete(id);
+    await this.options.store?.delete(id, session.tenantId);
     this.publish({ type: "session.deleted", sessionId: id });
   }
 
@@ -206,6 +210,7 @@ export class SessionManager {
         title: detail.title,
         workspace: detail.workspace,
         model: detail.model,
+        tenantId: detail.tenantId,
         systemPrompt: detail.systemPrompt ?? "",
         parentId: detail.parentId,
         depth: detail.depth,
@@ -225,6 +230,7 @@ export class SessionManager {
     workspace: string;
     model: string;
     systemPrompt: string;
+    tenantId?: string;
     parentId?: string;
     depth?: number;
     role?: string;
@@ -237,6 +243,7 @@ export class SessionManager {
       title,
       model,
       workspace,
+      tenantId: input.tenantId,
       systemPrompt,
       parentId: input.parentId,
       depth: input.depth,

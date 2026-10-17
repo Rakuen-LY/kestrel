@@ -91,6 +91,8 @@ export interface AgentSessionOptions {
   model: string;
   workspace: string;
   systemPrompt: string;
+  /** Owning tenant; `undefined` means the default tenant. */
+  tenantId?: string;
   messages?: ChatMessage[];
   createdAt?: string;
   updatedAt?: string;

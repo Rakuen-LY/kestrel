@@ -30,6 +30,9 @@ node apps/cli/dist/index.js --help
 | `--host <host>` | serve | Bind address. |
 | `--port <port>` | serve | Bind port. |
 | `--token <token>` | serve | Require a bearer token. |
+| `--role <role>` | users create | `admin` or `member` (default `member`). |
+| `--tenant <id>` | users create | Tenant id (default `default`). |
+| `--email <address>` | users create | Optional contact address. |
 | `--json` | run, skills | Print raw event envelopes (run) or a JSON document (skills). |
 | `-h, --help` | all | Help. |
 | `-v, --version` | all | Version. |

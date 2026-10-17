@@ -16,6 +16,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Core filesystem, search, shell, fetch, todo and finish tools | Done |
 | Memory tools and Model Context Protocol bridge | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
+| Accounts, roles and tenant isolation (`auth.mode: "accounts"`) | Done |
 | CLI: serve, run, chat, plugins, models, sessions | Done |
 | Docker, Compose, Kubernetes, systemd, launchd, Windows Task | Done |
 | Documentation site | You are reading it |
@@ -75,7 +76,7 @@ This is the largest piece of work and the one that changes the security story mo
 ### 7. Platform features
 
 - Plugin registry with signatures and provenance.
-- Multi-user auth (OIDC), per-user workspaces and quotas.
+- OIDC and SSO on top of the accounts model; per-tenant quotas and usage accounting.
 - Metrics (OpenTelemetry) and an audit log of tool executions.
 - Scheduled and event-triggered runs (webhooks, file watchers).
 

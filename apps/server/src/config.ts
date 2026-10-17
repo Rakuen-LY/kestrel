@@ -34,6 +34,19 @@ export interface StorageConfig {
   directory?: string;
 }
 
+export interface AuthConfig {
+  /**
+   * `none` trusts the network, `token` keeps the v0.1 single-operator model and
+   * `accounts` enables users, roles and tenant isolation.
+   */
+  mode?: "none" | "token" | "accounts";
+  /** First-run administrator token in `accounts` mode. Env: KESTREL_BOOTSTRAP_TOKEN. */
+  bootstrapToken?: string;
+  bootstrapName?: string;
+  /** Workspace root per tenant. Unlisted tenants get a directory under the data dir. */
+  workspaces?: Record<string, string>;
+}
+
 export interface KestrelConfig {
   name?: string;
   server: ServerConfig;
@@ -41,6 +54,7 @@ export interface KestrelConfig {
   agent: AgentConfig;
   plugins: PluginsConfig;
   storage: StorageConfig;
+  auth: AuthConfig;
   approvals: { timeoutMs?: number };
 }
 
@@ -56,6 +70,7 @@ const DEFAULT_CONFIG: KestrelConfig = {
   agent: {},
   plugins: { directories: ["plugins"] },
   storage: {},
+  auth: {},
   approvals: { timeoutMs: 15 * 60_000 },
 };
 
@@ -87,6 +102,7 @@ function mergeConfig(base: KestrelConfig, override: Partial<KestrelConfig>): Kes
       config: { ...base.plugins.config, ...override.plugins?.config },
     },
     storage: { ...base.storage, ...override.storage },
+    auth: { ...base.auth, ...override.auth, workspaces: { ...base.auth?.workspaces, ...override.auth?.workspaces } },
     approvals: { ...base.approvals, ...override.approvals },
   };
 }
@@ -116,6 +132,11 @@ function applyEnvironment(config: KestrelConfig): KestrelConfig {
     },
     plugins: { ...config.plugins, directories: plugins ?? config.plugins.directories },
     storage: { ...config.storage, directory: env.KESTREL_DATA_DIR ?? config.storage.directory },
+    auth: {
+      ...config.auth,
+      mode: (env.KESTREL_AUTH_MODE as AuthConfig["mode"]) ?? config.auth.mode,
+      bootstrapToken: env.KESTREL_BOOTSTRAP_TOKEN ?? config.auth.bootstrapToken,
+    },
   };
 }
 

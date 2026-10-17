@@ -49,6 +49,7 @@ export class AgentSession {
   readonly parentId?: string;
   readonly depth: number;
   readonly role?: string;
+  readonly tenantId?: string;
   private readonly options: AgentSessionOptions;
   private readonly listeners: Array<(event: SessionEvent) => void> = [];
   private readonly toolSession: ToolSession;
@@ -70,6 +71,7 @@ export class AgentSession {
     this.parentId = options.parentId;
     this.depth = options.depth ?? 0;
     this.role = options.role;
+    this.tenantId = options.tenantId;
     this.createdAt = options.createdAt ?? new Date().toISOString();
     this._updatedAt = options.updatedAt ?? this.createdAt;
     this.messageList = options.messages ? [...options.messages] : [];
@@ -131,6 +133,7 @@ export class AgentSession {
       messageCount: this.messageList.length,
       workspace: this.workspace,
       ...(this.parentId ? { parentId: this.parentId, depth: this.depth, role: this.role } : {}),
+      ...(this.tenantId && this.tenantId !== "default" ? { tenantId: this.tenantId } : {}),
     };
   }
 

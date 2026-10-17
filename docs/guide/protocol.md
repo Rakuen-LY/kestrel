@@ -7,7 +7,10 @@ Base URL: `http://<host>:7331`. All API paths are under `/api`.
 
 ## Authentication
 
-If `server.token` is configured, every `/api/*` request needs a bearer token:
+Every `/api/*` request is authenticated according to `auth.mode`. With `server.token` (mode
+`token`) the credential is a single operator token; with `accounts` it is a per-user token that
+also selects the tenant. See [Authentication and tenants](/guide/authentication). In both cases the
+header is:
 
 ```http
 Authorization: Bearer <token>
@@ -31,14 +34,21 @@ console files are public; the API they call is not.
 | `GET` | `/api/bootstrap` | Models, tools, plugins and feature flags for a new client. |
 | `GET` | `/api/config` | Sanitized runtime configuration (no secrets). |
 | `GET` | `/api/plugins` | Plugin list with state and errors. |
-| `GET` | `/api/sessions` | Session summaries. |
+| `GET` | `/api/auth/me` | Caller, tenant and authentication mode. |
+| `GET` | `/api/users` | Users in the platform (admin only). |
+| `POST` | `/api/users` | Create a user; the token is returned once (admin only). |
+| `POST` | `/api/users/:id/token` | Rotate a user's token (admin only). |
+| `DELETE` | `/api/users/:id` | Delete a user (admin only). |
+| `GET` | `/api/tenants` | Tenants (admin only). |
+| `POST` | `/api/tenants` | Create a tenant (admin only). |
+| `GET` | `/api/sessions` | Session summaries, scoped to the caller's tenant. |
 | `POST` | `/api/sessions` | Create a session. |
 | `GET` | `/api/sessions/:id` | Session detail, including the transcript. |
 | `PATCH` | `/api/sessions/:id` | Rename, change model or system prompt while idle. |
 | `DELETE` | `/api/sessions/:id` | Delete a session and its persisted transcript. |
 | `POST` | `/api/sessions/:id/messages` | Start a run. Returns `202` immediately. |
 | `GET` | `/api/sessions/:id/events` | SSE stream for one session. |
-| `GET` | `/api/events` | SSE stream for every session (operator dashboards). |
+| `GET` | `/api/events` | SSE stream for every session the caller may see. |
 | `POST` | `/api/sessions/:id/cancel` | Abort the active run. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | Approve or decline a tool call. |
 

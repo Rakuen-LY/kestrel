@@ -3,7 +3,16 @@ import { stdin, stdout } from "node:process";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { start } from "@kestrel/server";
-import { createRuntime, loadConfig, resolveWorkspace, type Runtime } from "@kestrel/server";
+import {
+  AuthStore,
+  createRuntime,
+  loadConfig,
+  resolveDataDirectory,
+  resolveMode,
+  resolveWorkspace,
+  type Runtime,
+  type UserRecord,
+} from "@kestrel/server";
 import { SkillCatalog } from "@kestrel/plugin-skills";
 import type { ServerEventEnvelope } from "@kestrel/protocol";
 
@@ -17,6 +26,9 @@ Usage:
   kestrel models
   kestrel sessions
   kestrel skills [show <name>]
+  kestrel tenants [create <name>]
+  kestrel users [create <name> [--role admin|member] [--tenant T] [--email E]]
+                [rotate <id|name>] [delete <id|name>]
 
 Global options:
   -c, --config <path>    Configuration file
@@ -45,6 +57,9 @@ async function main(): Promise<void> {
       host: { type: "string" },
       port: { type: "string" },
       token: { type: "string" },
+      role: { type: "string" },
+      tenant: { type: "string" },
+      email: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -153,6 +168,96 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "tenants" || command === "users") {
+    const config = await loadConfig(values.config as string | undefined);
+    const store = new AuthStore(resolveDataDirectory(config));
+    await store.load();
+    const subcommand = positionals[1];
+    const mode = resolveMode(config);
+
+    if (command === "tenants") {
+      if (subcommand === "create") {
+        const name = positionals.slice(2).join(" ").trim();
+        if (!name) {
+          stdout.write(color.red("Provide a name: kestrel tenants create <name>\n"));
+          process.exitCode = 2;
+          return;
+        }
+        const tenant = await store.createTenant(name);
+        stdout.write(`${color.green("created tenant")} ${color.bold(tenant.id)}  ${tenant.name}\n`);
+        return;
+      }
+      const counts = new Map<string, number>();
+      for (const user of store.listUsers()) {
+        counts.set(user.tenantId, (counts.get(user.tenantId) ?? 0) + 1);
+      }
+      for (const tenant of store.listTenants()) {
+        stdout.write(
+          `${color.bold(tenant.id)}  ${tenant.name}  ${color.dim(`${counts.get(tenant.id) ?? 0} user(s)`)}${tenant.id === "default" ? color.dim("  (default)") : ""}\n`,
+        );
+      }
+      return;
+    }
+
+    if (subcommand === "create") {
+      const name = positionals.slice(2).join(" ").trim();
+      if (!name) {
+        stdout.write(color.red("Provide a name: kestrel users create <name> [--role admin|member] [--tenant T]\n"));
+        process.exitCode = 2;
+        return;
+      }
+      const role = values.role ?? "member";
+      if (role !== "admin" && role !== "member") {
+        stdout.write(color.red('--role must be "admin" or "member".\n'));
+        process.exitCode = 2;
+        return;
+      }
+      const created = await store.createUser({
+        name,
+        role,
+        email: values.email as string | undefined,
+        tenantId: values.tenant as string | undefined,
+      });
+      stdout.write(`${color.green("created user")} ${color.bold(created.user.name)}  ${created.user.role}  tenant: ${created.user.tenantId}\n`);
+      stdout.write(`\n${color.bold("Token (shown once):")} ${color.cyan(created.token)}\n`);
+      stdout.write(color.dim("Store it now; only a hash is kept. Rotate with `kestrel users rotate <id>`.\n"));
+      if (mode !== "accounts") {
+        stdout.write(color.yellow('Note: auth.mode is not "accounts"; this token is unused until it is.\n'));
+      }
+      return;
+    }
+
+    if (subcommand === "rotate" || subcommand === "delete") {
+      const reference = positionals[2];
+      const user = reference ? findUser(store, reference) : undefined;
+      if (!user) {
+        stdout.write(color.red("Provide an existing user id or name.\n"));
+        process.exitCode = 2;
+        return;
+      }
+      if (subcommand === "delete") {
+        await store.deleteUser(user.id);
+        stdout.write(`${color.green("deleted")} ${user.name}${user.tenantId === "default" ? "" : `  (${user.tenantId})`}\n`);
+        return;
+      }
+      const rotated = await store.rotateToken(user.id);
+      stdout.write(`${color.green("rotated")} ${user.name}\n${color.bold("New token (shown once):")} ${color.cyan(rotated?.token ?? "")}\n`);
+      return;
+    }
+
+    const users = store.listUsers();
+    if (users.length === 0) {
+      stdout.write(color.dim('No users yet. Create one: kestrel users create <name> --role admin\n'));
+      return;
+    }
+    for (const user of users) {
+      stdout.write(
+        `${color.bold(user.name)}  ${user.role}  tenant: ${user.tenantId}  ${color.dim(user.id)}  ${color.dim(user.tokenHint)}${user.disabled ? color.yellow("  disabled") : ""}\n`,
+      );
+    }
+    return;
+  }
+
   if (command === "sessions") {
     const runtime = await createRuntime({ configPath: values.config as string | undefined });
     try {
@@ -195,6 +300,13 @@ async function main(): Promise<void> {
 
   stdout.write(`Unknown command "${command}".\n\n${HELP}`);
   process.exitCode = 2;
+}
+
+function findUser(store: AuthStore, reference: string): UserRecord | undefined {
+  const byId = store.user(reference);
+  if (byId) return byId;
+  const matches = store.listUsers().filter((user) => user.name === reference);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 function attachApprovalPrompt(runtime: Runtime, rl: ReturnType<typeof createInterface>): void {

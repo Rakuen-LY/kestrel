@@ -40,6 +40,9 @@
   "storage": {
     "directory": ".kestrel"
   },
+  "auth": {
+    "mode": "token"
+  },
   "approvals": {
     "timeoutMs": 900000
   }

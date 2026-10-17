@@ -42,6 +42,11 @@ Precedence: defaults → configuration file → environment variables → comman
     }
   },
   "storage": { "directory": ".kestrel" },
+  "auth": {
+    "mode": "token",
+    "bootstrapToken": "",
+    "workspaces": { "acme-corp": "/srv/kestrel/acme" }
+  },
   "approvals": { "timeoutMs": 900000 }
 }
 ```
@@ -106,9 +111,26 @@ resolve outside the workspace are ignored.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `directory` | string | `.kestrel` | Session store root. Transcripts live in `<directory>/sessions`. |
+| `directory` | string | `.kestrel` | Data root: sessions, accounts and per-tenant workspaces. |
+
+Transcripts live in `<directory>/sessions` for the default tenant and
+`<directory>/tenants/<tenantId>/sessions` for every other tenant. Accounts live in
+`<directory>/auth/accounts.json`.
 
 In containers, point this at a mounted volume (`/data`) so sessions survive restarts.
+
+## `auth`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `mode` | `"none"` \| `"token"` \| `"accounts"` | derived | Derived as `token` when `server.token` is set, otherwise `none`. |
+| `bootstrapToken` | string | — | First-run administrator token in accounts mode. |
+| `bootstrapName` | string | `Admin` | Display name for the bootstrap administrator. |
+| `workspaces` | object | `{}` | Workspace root per tenant id. Unlisted tenants use `<data>/tenants/<id>/workspace`. |
+
+Accounts mode is described in [Authentication and tenants](/guide/authentication). In short:
+`none` and `token` keep the single-operator model, while `accounts` adds users, roles and tenant
+isolation.
 
 ## `approvals`
 
@@ -130,6 +152,8 @@ In containers, point this at a mounted volume (`/data`) so sessions survive rest
 | `KESTREL_SYSTEM_PROMPT` | `agent.systemPrompt` | `Be terse.` |
 | `KESTREL_PLUGINS` | `plugins.directories` | `plugins,examples/plugins` |
 | `KESTREL_DATA_DIR` | `storage.directory` | `/data` |
+| `KESTREL_AUTH_MODE` | `auth.mode` | `accounts` |
+| `KESTREL_BOOTSTRAP_TOKEN` | `auth.bootstrapToken` | first-run admin token |
 | `KESTREL_LOG_LEVEL` | logger level | `debug` |
 | `KESTREL_LOG_FORMAT` | logger format | `json` |
 

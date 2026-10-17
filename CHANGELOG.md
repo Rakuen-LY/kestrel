@@ -8,6 +8,23 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Accounts and tenants: `auth.mode: "accounts"` adds per-user bearer tokens, `admin`/`member` roles
+  and tenant isolation for sessions, storage, workspaces and event streams. `none` and `token` keep
+  the single-operator behaviour and remain the default.
+- `kestrel users` and `kestrel tenants`: create, list, rotate and delete accounts from the host that
+  owns the data directory.
+- HTTP management: `GET /api/auth/me`, `/api/users`, `/api/users/:id/token`, `/api/tenants`.
+- Console: sign-in screen for `401`, and an Account section showing the current user, role and
+  tenant.
+- Config: `auth.mode`, `auth.bootstrapToken`, `auth.bootstrapName`, `auth.workspaces`; env
+  `KESTREL_AUTH_MODE`, `KESTREL_BOOTSTRAP_TOKEN`.
+- Session summaries carry `tenantId` for non-default tenants.
+
+### Changed
+
+- `SessionStore` paths and `SessionManager.create()` are tenant-aware; the default tenant keeps the
+  v0.1 `<data>/sessions` layout, so existing data directories need no migration.
+
 - `delegate_many`: fan-out delegation. Up to `maxFanOut` independent tasks run concurrently under the
   same per-parent budget as `delegate`; excess tasks queue and are dropped if the parent is cancelled.
   Results are returned in request order with per-task status, timing, usage and session id.

@@ -3,6 +3,7 @@ import type { ChatMessage, SessionDetail } from "@kestrel/protocol";
 import { ApprovalDialog } from "./components/ApprovalDialog.js";
 import { Composer } from "./components/Composer.js";
 import { MessageBubble } from "./components/MessageBubble.js";
+import { LoginScreen } from "./components/LoginScreen.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { ToolCallCard } from "./components/ToolCall.js";
@@ -91,6 +92,10 @@ export default function App() {
   const modelOptions = state.bootstrap?.models ?? [];
   const pluginCount = state.bootstrap?.plugins.length ?? 0;
   const approval = state.approvals[0];
+
+  if (state.unauthorized) {
+    return <LoginScreen endpoint={api.endpoint} onSubmit={(token) => actions.signIn(token)} />;
+  }
 
   return (
     <div className="app">
@@ -265,6 +270,10 @@ export default function App() {
         onSaveEndpoint={(endpoint) => {
           writeEndpoint(endpoint);
           window.location.reload();
+        }}
+        onSignOut={() => {
+          actions.signOut();
+          setSettingsOpen(false);
         }}
         onSaveToken={(token) => {
           api.setToken(token);

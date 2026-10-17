@@ -13,6 +13,7 @@ import { createContext, createLogger, type Context, type Logger } from "@kestrel
 import { PluginHost } from "@kestrel/plugin-host";
 import type { ApprovalRequest, PluginInfo } from "@kestrel/protocol";
 import { loadConfig, resolveDataDirectory, resolveWorkspace, type KestrelConfig } from "./config.js";
+import { createAuthService, tenantWorkspace, type AuthService } from "./auth.js";
 import { EventHub } from "./events.js";
 
 export class ApprovalBroker {
@@ -85,6 +86,9 @@ export interface Runtime {
   plugins: PluginHost;
   events: EventHub;
   approvals: ApprovalBroker;
+  auth: AuthService;
+  /** Root directory a tenant's sessions may use by default. */
+  workspaceFor(tenantId: string): string;
   pluginInfos: PluginInfo[];
   startedAt: number;
   shutdown(): Promise<void>;
@@ -117,6 +121,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   const approvals = new ApprovalBroker(config.approvals.timeoutMs ?? 15 * 60_000, logger);
   const workspace = resolveWorkspace(config);
   const dataDirectory = resolveDataDirectory(config);
+  const auth = await createAuthService(config, dataDirectory);
 
   const sessions = new SessionManager({
     models,
@@ -180,6 +185,8 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     plugins: host,
     events,
     approvals,
+    auth,
+    workspaceFor: (tenantId) => tenantWorkspace(config, dataDirectory, tenantId, workspace),
     pluginInfos,
     startedAt: Date.now(),
     async shutdown() {
@@ -194,6 +201,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   logger.info("runtime ready", {
     workspace,
     dataDirectory,
+    auth: auth.mode,
     models: models.list().map((model) => model.id),
     tools: tools.size,
     plugins: pluginInfos.filter((plugin) => plugin.state === "active").length,

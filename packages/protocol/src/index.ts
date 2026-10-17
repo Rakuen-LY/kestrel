@@ -93,11 +93,28 @@ export interface SessionSummary {
   depth?: number;
   /** Subagent role name, e.g. `researcher`. Root sessions omit it. */
   role?: string;
+  /** Owning tenant. Omitted for the default tenant, so v0.1 payloads are unchanged. */
+  tenantId?: string;
 }
 
 export interface SessionDetail extends SessionSummary {
   messages: ChatMessage[];
   systemPrompt?: string;
+}
+
+export interface TenantInfo {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
+export interface PrincipalInfo {
+  id: string;
+  name: string;
+  /** `admin` may manage tenants and accounts; `member` is scoped to one tenant. */
+  role: "admin" | "member";
+  tenantId: string;
+  email?: string;
 }
 
 export interface ApprovalRequest {
@@ -227,7 +244,13 @@ export interface BootstrapResponse {
     approvals: boolean;
     persistence: boolean;
     multiSession: boolean;
+    /** The server authenticates accounts rather than a single operator token. */
+    accounts?: boolean;
+    multiTenant?: boolean;
   };
+  /** The authenticated caller. Absent when authentication is disabled. */
+  principal?: PrincipalInfo;
+  tenant?: TenantInfo;
 }
 
 /** Paths are stable API surface; keep them in one place for all clients. */

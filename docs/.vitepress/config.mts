@@ -62,6 +62,7 @@ export default defineConfig({
             { text: "Tools & approvals", link: "/guide/tools" },
             { text: "Models & providers", link: "/guide/models" },
             { text: "Protocol & API", link: "/guide/protocol" },
+            { text: "Authentication & tenants", link: "/guide/authentication" },
             { text: "CLI", link: "/guide/cli" },
             { text: "Web console", link: "/guide/web-console" },
             { text: "Example plugins", link: "/guide/examples" },

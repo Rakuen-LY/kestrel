@@ -4,6 +4,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, resolve, sep } from "node:path";
 import { PROTOCOL_VERSION, type ApiErrorBody, type ApprovalDecision, type BootstrapResponse, type CreateSessionRequest, type HealthResponse, type SendMessageRequest } from "@kestrel/protocol";
 import { SessionNotFoundError } from "@kestrel/agent";
+import type { AgentSession } from "@kestrel/agent";
+import { AuthError, type Principal } from "./auth.js";
 import type { Runtime } from "./runtime.js";
 
 const VERSION = "0.1.0";
@@ -75,8 +77,100 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     return;
   }
 
-  if (!authorized(runtime, req, url)) {
-    throw new HttpError(401, "unauthorized", "Provide a valid bearer token.");
+  const principal = requirePrincipal(runtime, req, url);
+  const tenant = runtime.auth.store?.tenant(principal.tenantId);
+
+  if (url.pathname === "/api/auth/me" && method === "GET") {
+    json(res, 200, {
+      principal: {
+        id: principal.id,
+        name: principal.name,
+        role: principal.role,
+        tenantId: principal.tenantId,
+        email: principal.email,
+      },
+      tenant: tenant ?? { id: principal.tenantId, name: principal.tenantId },
+      mode: runtime.auth.mode,
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/tenants") {
+    requireAdmin(principal);
+    const store = requireStore(runtime);
+    if (method === "GET") {
+      json(res, 200, { tenants: store.listTenants() });
+      return;
+    }
+    if (method === "POST") {
+      const body = await readJson<{ name?: string }>(req, runtime);
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        throw new HttpError(400, "invalid_name", "name must be a non-empty string.");
+      }
+      json(res, 201, { tenant: await store.createTenant(body.name) });
+      return;
+    }
+    throw new HttpError(405, "method_not_allowed", "Use GET or POST.");
+  }
+
+  if (url.pathname === "/api/users") {
+    requireAdmin(principal);
+    const store = requireStore(runtime);
+    if (method === "GET") {
+      json(res, 200, { users: store.listUsers() });
+      return;
+    }
+    if (method === "POST") {
+      const body = await readJson<{
+        name?: string;
+        email?: string;
+        role?: string;
+        tenantId?: string;
+      }>(req, runtime);
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        throw new HttpError(400, "invalid_name", "name must be a non-empty string.");
+      }
+      if (body.role !== undefined && body.role !== "admin" && body.role !== "member") {
+        throw new HttpError(400, "invalid_role", 'role must be "admin" or "member".');
+      }
+      try {
+        const created = await store.createUser({
+          name: body.name,
+          email: typeof body.email === "string" ? body.email : undefined,
+          role: body.role,
+          tenantId: typeof body.tenantId === "string" ? body.tenantId : principal.tenantId,
+        });
+        json(res, 201, created);
+      } catch (error) {
+        throw authError(error);
+      }
+      return;
+    }
+    throw new HttpError(405, "method_not_allowed", "Use GET or POST.");
+  }
+
+  const userMatch = /^\/api\/users\/([^/]+)(?:\/(token))?$/.exec(url.pathname);
+  if (userMatch) {
+    requireAdmin(principal);
+    const store = requireStore(runtime);
+    const id = decodeURIComponent(userMatch[1]);
+    const action = userMatch[2];
+
+    if (!action && method === "DELETE") {
+      if (id === principal.id) {
+        throw new HttpError(409, "self_delete", "You cannot delete the account you are using.");
+      }
+      if (!(await store.deleteUser(id))) throw new HttpError(404, "user_not_found", "Unknown user.");
+      res.writeHead(204).end();
+      return;
+    }
+    if (action === "token" && method === "POST") {
+      const rotated = await store.rotateToken(id);
+      if (!rotated) throw new HttpError(404, "user_not_found", "Unknown user.");
+      json(res, 200, rotated);
+      return;
+    }
+    throw new HttpError(405, "method_not_allowed", "Use DELETE, or POST to rotate a token.");
   }
 
   if (url.pathname === "/api/bootstrap" && method === "GET") {
@@ -87,7 +181,22 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       models: runtime.models.list(),
       tools: runtime.tools.schemas(),
       plugins: runtime.plugins.list(),
-      features: { streaming: true, approvals: true, persistence: true, multiSession: true },
+      features: {
+        streaming: true,
+        approvals: true,
+        persistence: true,
+        multiSession: true,
+        accounts: runtime.auth.mode === "accounts",
+        multiTenant: runtime.auth.mode === "accounts",
+      },
+      principal: {
+        id: principal.id,
+        name: principal.name,
+        role: principal.role,
+        tenantId: principal.tenantId,
+        email: principal.email,
+      },
+      tenant: tenant ?? { id: principal.tenantId, name: principal.tenantId },
     };
     json(res, 200, bootstrap);
     return;
@@ -97,10 +206,12 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     json(res, 200, {
       name: runtime.config.name ?? "Kestrel",
       defaultModel: runtime.models.defaultModel ?? null,
-      workspace: runtime.config.agent.workspace ?? ".",
+      workspace: runtime.workspaceFor(principal.tenantId),
       pluginDirectories: runtime.plugins.directories(),
       maxSteps: runtime.config.model.maxSteps ?? null,
-      authentication: Boolean(runtime.config.server.token),
+      authentication: runtime.auth.mode !== "none",
+      authMode: runtime.auth.mode,
+      tenant: tenant ?? { id: principal.tenantId, name: principal.tenantId },
     });
     return;
   }
@@ -112,13 +223,19 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
 
   if (url.pathname === "/api/sessions") {
     if (method === "GET") {
-      json(res, 200, { sessions: runtime.sessions.list() });
+      const scope = principal.role === "admin" ? undefined : principal.tenantId;
+      json(res, 200, { sessions: runtime.sessions.list(scope) });
       return;
     }
     if (method === "POST") {
       const body = await readJson<CreateSessionRequest>(req, runtime);
       validateCreate(body);
-      const session = runtime.sessions.create(body);
+      // Members are pinned to their tenant workspace; an admin may override it.
+      const workspace =
+        body.workspace && principal.role === "admin"
+          ? body.workspace
+          : runtime.workspaceFor(principal.tenantId);
+      const session = runtime.sessions.create({ ...body, workspace }, principal.tenantId);
       json(res, 201, { session: session.detail() });
       return;
     }
@@ -126,7 +243,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
   }
 
   if (url.pathname === "/api/events" && method === "GET") {
-    streamEvents(runtime, req, res, url);
+    streamEvents(runtime, req, res, url, principal);
     return;
   }
 
@@ -134,7 +251,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
   if (sessionMatch) {
     const id = decodeURIComponent(sessionMatch[1]);
     const action = sessionMatch[2];
-    const session = runtime.sessions.get(id);
+    const session = visibleSession(runtime, principal, id);
 
     if (!action && method === "GET") {
       json(res, 200, { session: session.detail() });
@@ -187,7 +304,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       return;
     }
     if (action === "events" && method === "GET") {
-      streamEvents(runtime, req, res, url, id);
+      streamEvents(runtime, req, res, url, principal, id);
       return;
     }
     if (action === "cancel" && method === "POST") {
@@ -202,7 +319,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
   if (approvalMatch && method === "POST") {
     const sessionId = decodeURIComponent(approvalMatch[1]);
     const approvalId = decodeURIComponent(approvalMatch[2]);
-    runtime.sessions.get(sessionId);
+    visibleSession(runtime, principal, sessionId);
     const body = await readJson<ApprovalDecision>(req, runtime);
     if (typeof body.approved !== "boolean") {
       throw new HttpError(400, "invalid_decision", "approved must be a boolean.");
@@ -221,9 +338,10 @@ function streamEvents(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
+  principal: Principal,
   sessionId?: string,
 ): void {
-  if (sessionId) runtime.sessions.get(sessionId);
+  if (sessionId) visibleSession(runtime, principal, sessionId);
   // Replay only for reconnects. A first connection receives session history
   // through GET /api/sessions/:id, so replaying the buffer would duplicate it.
   const rawLast = req.headers["last-event-id"] ?? url.searchParams.get("lastEventId");
@@ -237,6 +355,7 @@ function streamEvents(
   let live = false;
 
   const send = (envelope: { seq: number; at: string; event: unknown }) => {
+    if (!visibleEvent(runtime, principal, envelope.event)) return;
     if (written.has(envelope.seq)) return;
     written.add(envelope.seq);
     if (!live) {
@@ -356,22 +475,55 @@ function applySecurityHeaders(res: ServerResponse): void {
   res.setHeader("cross-origin-opener-policy", "same-origin");
 }
 
-function authorized(runtime: Runtime, req: IncomingMessage, url: URL): boolean {
-  const expected = runtime.config.server.token;
-  if (!expected) return true;
+function requirePrincipal(runtime: Runtime, req: IncomingMessage, url: URL): Principal {
   const header = req.headers.authorization;
-  const supplied = header?.startsWith("Bearer ") ? header.slice(7) : url.searchParams.get("token");
-  if (!supplied) return false;
-  return constantTimeEqual(supplied, expected);
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : url.searchParams.get("token");
+  const principal = runtime.auth.authenticate(token ?? undefined);
+  if (!principal) throw new HttpError(401, "unauthorized", "Provide a valid bearer token.");
+  return principal;
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  let diff = 0;
-  for (let index = 0; index < left.length; index += 1) diff |= left[index] ^ right[index];
-  return diff === 0;
+function requireAdmin(principal: Principal): void {
+  if (principal.role !== "admin") {
+    throw new HttpError(403, "forbidden", "This operation requires an administrator.");
+  }
+}
+
+function requireStore(runtime: Runtime) {
+  const store = runtime.auth.store;
+  if (!store) {
+    throw new HttpError(
+      409,
+      "accounts_disabled",
+      'User management requires auth.mode "accounts" in the server configuration.',
+    );
+  }
+  return store;
+}
+
+function authError(error: unknown): HttpError {
+  if (error instanceof AuthError) {
+    const status = error.code === "unknown_tenant" ? 400 : 409;
+    return new HttpError(status, error.code, error.message);
+  }
+  return new HttpError(500, "internal_error", error instanceof Error ? error.message : String(error));
+}
+
+/** Another tenant's session is reported as missing, not forbidden. */
+function visibleSession(runtime: Runtime, principal: Principal, id: string): AgentSession {
+  const session = runtime.sessions.get(id);
+  if (principal.role !== "admin" && (session.tenantId ?? "default") !== principal.tenantId) {
+    throw new HttpError(404, "session_not_found", `Session "${id}" does not exist.`);
+  }
+  return session;
+}
+
+function visibleEvent(runtime: Runtime, principal: Principal, event: unknown): boolean {
+  if (principal.role === "admin") return true;
+  const sessionId = (event as { sessionId?: string }).sessionId;
+  if (!sessionId) return true;
+  if (!runtime.sessions.has(sessionId)) return false;
+  return (runtime.sessions.get(sessionId).tenantId ?? "default") === principal.tenantId;
 }
 
 async function readJson<T>(req: IncomingMessage, runtime: Runtime): Promise<T> {

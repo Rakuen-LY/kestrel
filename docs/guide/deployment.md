@@ -29,7 +29,26 @@ docker run --rm -p 127.0.0.1:7331:7331 \
 ```
 
 The image runs as the unprivileged `node` user (uid 1000). `/workspace` is where tools operate;
-`/data` holds transcripts. Mount a project directory, never the Docker socket.
+`/data` holds transcripts, accounts and per-tenant workspaces. Mount a project directory, never the
+Docker socket.
+
+### Several users in one container
+
+Add accounts mode and bootstrap the first administrator on the first start:
+
+```bash
+docker run --rm -p 127.0.0.1:7331:7331 \
+  -e KESTREL_AUTH_MODE=accounts \
+  -e KESTREL_BOOTSTRAP_TOKEN="$(openssl rand -hex 32)" \
+  -e OPENAI_API_KEY=sk-... \
+  -v kestrel-data:/data \
+  kestrel
+```
+
+The bootstrap token is only used while no user exists. Create further users with
+`docker exec -it <container> kestrel users create <name> --role member --tenant <id>`, or over the
+API. Tenants get their own workspace under `/data/tenants/<id>/workspace` unless
+`auth.workspaces` maps them elsewhere. See [Authentication and tenants](/guide/authentication).
 
 ### Compose
 
@@ -51,6 +70,7 @@ The manifests in `deploy/k8s` are a kustomize base:
 kubectl create namespace kestrel
 kubectl -n kestrel create secret generic kestrel-secrets \
   --from-literal=KESTREL_TOKEN="$(openssl rand -hex 24)" \
+  --from-literal=KESTREL_BOOTSTRAP_TOKEN="$(openssl rand -hex 32)" \
   --from-literal=OPENAI_API_KEY=sk-...
 kubectl apply -k deploy/k8s
 ```
@@ -141,17 +161,19 @@ location / {
 If the console shows repeated reconnects, buffering is the usual cause. Caddy works without extra
 configuration; Traefik needs `buffering` disabled on the service.
 
-The server binds to loopback by default. Keep it that way when a proxy is in front, and set
-`KESTREL_TOKEN` even then.
+The server binds to loopback by default. Keep it that way when a proxy is in front, and require a
+credential even then: `KESTREL_TOKEN`, or `auth.mode: "accounts"` with per-user tokens.
 
 ## Persistence and backups
 
 ```
-/data/sessions/<id>/session.json
+/data/sessions/<id>/session.json                 # default tenant
+/data/tenants/<tenantId>/sessions/<id>/...       # other tenants
+/data/auth/accounts.json                         # users, tenants, hashed tokens
 ```
 
-Each session is a single JSON document written atomically. Back up the directory; restore it before
-starting the process. A newer build ignores unknown fields and fills missing optional ones, so
+Each session is a single JSON document written atomically. Back up the whole directory; restore it
+before starting the process. A newer build ignores unknown fields and fills missing optional ones, so
 downgrades are not guaranteed. There is no migration tool yet.
 
 Memory notes live inside the workspace by default (`.kestrel/memory.json`), so back them up with the
