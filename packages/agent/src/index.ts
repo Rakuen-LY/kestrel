@@ -14,6 +14,7 @@ export { createMessage, assistantMessage, toolMessage, estimateTokens, titleFrom
 export type {
   AgentSessionOptions,
   ApprovalHandler,
+  CompactionOptions,
   CompletionRequest,
   CompletionResponse,
   FinishReason,

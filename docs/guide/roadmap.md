@@ -18,6 +18,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
 | Plugin UI contributions: browser bundles rendered in console slots | Done |
 | Workspace checkpoints, rewind and safety snapshots | Done |
+| Context compaction with a model-written summary | Done |
 | Accounts, roles and tenant isolation (`auth.mode: "accounts"`) | Done |
 | CLI: serve, run, chat, plugins, models, sessions | Done |
 | Docker, Compose, Kubernetes, systemd, launchd, Windows Task | Done |
@@ -68,7 +69,8 @@ This is the largest piece of work and the one that changes the security story mo
 - ~~Sub-agents and delegation~~ — shipped in `@kestrel/plugin-subagents` with isolated context,
   roles and a bounded depth (see [Subagents](/guide/subagents)). Still missing: parallel fan-out in
   one tool call, and per-branch cost reporting.
-- Context compaction and summarisation for long sessions.
+- ~~Context compaction and summarisation for long sessions~~ — shipped; see
+  [Long sessions](/guide/models#long-sessions-and-compaction).
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery
   and progressive loading ship in `@kestrel/plugin-skills`; see [Skills](/guide/skills).
 - Multimodal messages and image-producing tools.

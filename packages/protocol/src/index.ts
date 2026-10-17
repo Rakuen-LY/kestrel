@@ -222,6 +222,14 @@ export type SessionEvent =
   | { type: "approval.resolved"; sessionId: string; approvalId: string; approved: boolean }
   | { type: "session.deleted"; sessionId: string }
   | { type: "plugin.changed"; plugin: PluginInfo }
+  | {
+      type: "context.compacted";
+      sessionId: string;
+      removedMessages: number;
+      keptMessages: number;
+      tokensBefore: number;
+      tokensAfter: number;
+    }
   | { type: "notice"; level: "info" | "warn" | "error"; message: string };
 
 export interface ServerEventEnvelope {

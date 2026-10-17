@@ -141,6 +141,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     maxSteps: config.model.maxSteps,
     temperature: config.model.temperature,
     maxTokens: config.model.maxTokens,
+    compaction: config.agent.compaction,
     approve: (request, signal) => approvals.wait(request, signal),
     systemPrompt: (sessionWorkspace) =>
       defaultSystemPrompt({

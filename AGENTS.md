@@ -103,3 +103,9 @@ never contains agent logic.
   `snapshot()` there would deadlock. Restores use `reset --hard` + `clean -fd` (no `-x`) so ignored
   files such as `node_modules/` survive.
 - A checkpoint failure must never fail a run: both HTTP and CLI wrap snapshots in try/catch and log.
+- Context compaction (`AgentSession.maybeCompact`) runs inside the step loop, before the model call.
+  The cut must land on a `user` message so tool calls never separate from results, and it must stay
+  above 25% of *conversation* tokens (not total prompt, which includes the large system prompt) to
+  avoid one summary call per step. Failures and empty summaries leave history untouched; a run must
+  never fail because compaction did. The console refetches on `context.compacted` because history is
+  rewritten server-side.

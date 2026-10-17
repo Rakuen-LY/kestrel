@@ -178,6 +178,7 @@ function applyEvent(state: UiState, event: SessionEvent): UiState {
       return { ...state, approvals: state.approvals.filter((item) => item.id !== event.approvalId) };
     }
     case "notice":
+    case "context.compacted":
       return state;
     default:
       return state;
@@ -266,11 +267,16 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
   useEffect(() => {
     if (!state.activeId) return;
     const close = api.stream(state.activeId, {
-      onEvent: (event) => dispatch({ type: "event", event }),
+      onEvent: (event) => {
+        dispatch({ type: "event", event });
+        // Compaction rewrites server-side history; refetch so the transcript
+        // shows the summary instead of messages the model no longer sees.
+        if (event.type === "context.compacted") void refresh();
+      },
       onStatus: (connection) => dispatch({ type: "connection", connection }),
     });
     return close;
-  }, [api, state.activeId]);
+  }, [api, state.activeId, refresh]);
 
   const actions = useMemo<KestrelActions>(
     () => ({

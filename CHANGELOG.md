@@ -32,6 +32,10 @@ All notable changes to Kestrel are documented here. The format follows
 - `kestrel checkpoints list|create|restore` and a checkpoint drawer in the console.
 - Config: `checkpoints.enabled`, `checkpoints.maxFiles`, `checkpoints.exclude`; env
   `KESTREL_CHECKPOINTS`, `KESTREL_CHECKPOINTS_MAX_FILES`.
+- Context compaction: once an estimated prompt crosses `agent.compaction.threshold` of the model
+  window, the oldest turns are replaced by a model-written summary, keeping tool call/result pairs
+  intact. Emits `context.compacted`; the console refetches the transcript. A failed summarizer call
+  leaves history untouched.
 
 ### Changed
 

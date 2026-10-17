@@ -88,6 +88,10 @@ refactors. When the limit is reached the run emits a `notice` and `run.finished`
 | --- | --- | --- | --- |
 | `workspace` | string | `"."` | Root for tools and new sessions. Resolved at startup. |
 | `systemPrompt` | string | — | Extra instructions appended to the default prompt. |
+| `compaction.enabled` | boolean | `true` | Summarize old turns when the prompt approaches the model window. |
+| `compaction.threshold` | number | `0.8` | Fraction of the context window that triggers compaction. |
+| `compaction.keepRecent` | number | `8` | Messages kept verbatim after the summary. |
+| `compaction.fallbackContextWindow` | number | `128000` | Window assumed when a model reports none. |
 
 A session may pin a different workspace at creation; tools then operate there. The default system
 prompt always states the active workspace and tool list.

@@ -85,6 +85,21 @@ export type ApprovalHandler = (
   signal: AbortSignal,
 ) => Promise<boolean>;
 
+/**
+ * Long sessions eventually outgrow the model window. When the estimated prompt
+ * crosses `threshold` of the window, the oldest messages are replaced by one
+ * model-written summary; the transcript keeps a visible record of it.
+ */
+export interface CompactionOptions {
+  enabled?: boolean;
+  /** Fraction of the context window that triggers compaction (default 0.8). */
+  threshold?: number;
+  /** Messages kept verbatim after the summary (default 8). */
+  keepRecent?: number;
+  /** Window assumed when the model does not declare one (default 128000). */
+  fallbackContextWindow?: number;
+}
+
 export interface AgentSessionOptions {
   id: string;
   title: string;
@@ -99,6 +114,7 @@ export interface AgentSessionOptions {
   maxSteps?: number;
   temperature?: number;
   maxTokens?: number;
+  compaction?: CompactionOptions;
   /** Set for subagents; omitted for sessions a human started. */
   parentId?: string;
   depth?: number;

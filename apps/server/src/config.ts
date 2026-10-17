@@ -19,10 +19,19 @@ export interface ModelConfig {
   maxSteps?: number;
 }
 
+export interface CompactionConfig {
+  enabled?: boolean;
+  threshold?: number;
+  keepRecent?: number;
+  fallbackContextWindow?: number;
+}
+
 export interface AgentConfig {
   workspace?: string;
   systemPrompt?: string;
   restrictToWorkspace?: boolean;
+  /** Summarize old turns once the prompt approaches the model window. */
+  compaction?: CompactionConfig;
 }
 
 export interface PluginsConfig {

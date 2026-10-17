@@ -156,6 +156,9 @@ Deltas may arrive on the `text` or `reasoning` channel and can interleave.
 `notice` can appear between any two events. `plugin.changed` is part of the union but is not
 emitted by the 0.1 server; treat it as forward-compatible surface.
 
+`context.compacted` says the server replaced old messages with a summary; clients should refetch the
+session before rendering the next turn. See [Long sessions](/guide/models#long-sessions-and-compaction).
+
 ## Event union
 
 ```ts
@@ -175,6 +178,8 @@ type SessionEvent =
   | { type: "approval.resolved"; sessionId: string; approvalId: string; approved: boolean }
   | { type: "session.deleted"; sessionId: string }
   | { type: "plugin.changed"; plugin: PluginInfo }
+  | { type: "context.compacted"; sessionId: string; removedMessages: number;
+      keptMessages: number; tokensBefore: number; tokensAfter: number }
   | { type: "notice"; level: "info" | "warn" | "error"; message: string };
 ```
 

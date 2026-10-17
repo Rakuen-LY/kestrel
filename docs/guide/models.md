@@ -130,3 +130,45 @@ apply(context, config) {
 ```
 
 Keep the model object stateless where possible; sessions may be created and destroyed concurrently.
+
+## Long sessions and compaction
+
+A model call is bounded by the context window, not by how long a conversation has run. Kestrel
+estimates the prompt on every step (chars/4, plus a small per-message overhead) and, once it crosses
+`agent.compaction.threshold` of the window, replaces the oldest turns with a model-written brief.
+
+```
+before:  [user][assistant][tool]... 40 turns ... [user]
+after:   [assistant: summary] [user][assistant][tool] [user]
+```
+
+The cut always lands on a user message, so a tool call is never separated from its result. The
+summary is a normal assistant message in the transcript — visible in clients and to the agent — and
+the `context.compacted` event reports how many messages were folded and the estimated token change.
+Messages in the tail are kept verbatim; the summarizer itself receives a truncated transcript with
+tool arguments shortened, so compaction cannot recursively blow up the window.
+
+Configuration:
+
+```json
+{
+  "agent": {
+    "compaction": { "threshold": 0.8, "keepRecent": 8 }
+  }
+}
+```
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Set `false` to keep full history and let the provider reject oversized prompts. |
+| `threshold` | `0.8` | Fraction of `contextWindow` that triggers compaction. |
+| `keepRecent` | `8` | Messages always preserved. |
+| `fallbackContextWindow` | `128000` | Used when a model does not declare a window. |
+
+Compaction needs at least two removable messages and a user-message boundary; otherwise the step
+proceeds unchanged. If the summarizer call fails or returns nothing, the failure is logged and the
+original history is kept — a compaction problem never fails a run. Token counts are estimates until
+the provider reports usage, so leave headroom below `1.0`.
+
+Compaction edits history, checkpoints edit files. They are independent: restoring a checkpoint does
+not rewind the transcript, and compaction does not touch the workspace.

@@ -6,7 +6,7 @@ import { defaultSystemPrompt, subagentSystemPrompt } from "./prompt.js";
 import type { PromptPipeline } from "./prompts.js";
 import type { SessionStore } from "./store.js";
 import type { ModelRegistry, ToolRegistry } from "./registry.js";
-import type { ApprovalHandler, PermissionResolver, RunResult } from "./types.js";
+import type { ApprovalHandler, CompactionOptions, PermissionResolver, RunResult } from "./types.js";
 
 export class SessionNotFoundError extends Error {
   readonly code = "session_not_found";
@@ -46,6 +46,7 @@ export interface SessionManagerOptions {
   maxSteps?: number;
   temperature?: number;
   maxTokens?: number;
+  compaction?: CompactionOptions;
   approve?: ApprovalHandler;
   resolvePermission?: PermissionResolver;
 }
@@ -252,6 +253,7 @@ export class SessionManager {
       maxSteps: input.maxSteps ?? this.options.maxSteps,
       temperature: this.options.temperature,
       maxTokens: this.options.maxTokens,
+      compaction: this.options.compaction,
       models: this.options.models,
       tools: this.options.tools,
       logger: this.options.logger.child({ sessionId: id }),

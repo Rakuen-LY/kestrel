@@ -10,7 +10,16 @@ import type {
   ToolSchema,
 } from "@kestrel/protocol";
 import { formatValidationIssues, validateArguments } from "./registry.js";
-import { addUsage, assistantMessage, createMessage, emptyUsage, titleFromInput, toolMessage, truncateToolOutput } from "./messages.js";
+import {
+  addUsage,
+  assistantMessage,
+  createMessage,
+  emptyUsage,
+  estimateTokens,
+  titleFromInput,
+  toolMessage,
+  truncateToolOutput,
+} from "./messages.js";
 import type {
   AgentSessionOptions,
   CompletionRequest,
@@ -21,6 +30,7 @@ import type {
   ToolContext,
   ToolPermission,
   ToolSession,
+  Usage,
 } from "./types.js";
 
 class RunCancelledError extends Error {
@@ -37,6 +47,27 @@ interface ActiveRun {
 }
 
 const DEFAULT_MAX_STEPS = 40;
+const DEFAULT_FALLBACK_CONTEXT_WINDOW = 128_000;
+const COMPACTION_OUTPUT_TOKENS = 1_500;
+const COMPACTION_INPUT_CHARS = 60_000;
+const COMPACTION_MESSAGE_CHARS = 1_500;
+
+const COMPACTION_PROMPT = `You compress the transcript of a coding agent so the conversation can continue in a smaller context window.
+
+Write a dense brief that preserves:
+- the user's goals, constraints and preferences;
+- decisions taken, and why alternatives were rejected;
+- files and symbols touched, with the concrete names and paths;
+- commands run and their outcomes, including failures;
+- open questions and the next concrete step.
+
+Omit greetings, restated instructions and tool output that no longer matters. Reply with the brief only.`;
+
+/**
+ * Summarizes the oldest part of a conversation once the prompt approaches the
+ * model window. The cut always lands on a user message, so a tool call and its
+ * results are never separated.
+ */
 
 /**
  * One conversation with an agent. The session owns message history, the tool
@@ -221,6 +252,8 @@ export class AgentSession {
         this.throwIfCancelled(controller.signal);
         steps += 1;
         const model = this.options.models.get(this._model);
+        usage = addUsage(usage, await this.maybeCompact(model, controller.signal));
+
         const draft = assistantMessage("");
         this.emit({ type: "message.started", sessionId: this.id, message: { ...draft } });
 
@@ -441,6 +474,86 @@ export class AgentSession {
     return this.options.allowTools ? schemas.filter((schema) => this.isToolAllowed(schema.name)) : schemas;
   }
 
+  private estimateContextTokens(): number {
+    const system = this._systemPrompt.trim();
+    return this.messageList.reduce((total, message) => total + messageTokens(message), estimateTokens(system));
+  }
+
+  private async maybeCompact(model: LanguageModel, signal: AbortSignal): Promise<Usage> {
+    const config = this.options.compaction;
+    if (config?.enabled === false) return emptyUsage();
+    const window = model.info.contextWindow ?? config?.fallbackContextWindow ?? DEFAULT_FALLBACK_CONTEXT_WINDOW;
+    const threshold = config?.threshold ?? 0.8;
+    const budget = Math.max(64, Math.floor(window * threshold));
+    const before = this.estimateContextTokens();
+    if (before <= budget) return emptyUsage();
+
+    const keepRecent = Math.max(2, config?.keepRecent ?? 8);
+    let cut = Math.max(0, this.messageList.length - keepRecent);
+    while (cut > 0 && this.messageList[cut]?.role !== "user") cut -= 1;
+    if (cut < 2) return emptyUsage();
+
+    const removed = this.messageList.slice(0, cut);
+    // Compacting a tiny prefix does not pay for the summary call and would run
+    // again on the next step. Compare against conversation tokens only: a large
+    // system prompt must not make every prefix look negligible.
+    const conversation = before - estimateTokens(this._systemPrompt.trim());
+    const removedTokens = removed.reduce((total, message) => total + messageTokens(message), 0);
+    if (removedTokens < conversation * 0.25) return emptyUsage();
+
+    this.options.logger.info("compacting context", { sessionId: this.id, removed: removed.length, before });
+    let response: CompletionResponse;
+    try {
+      response = await this.callModel(
+        model,
+        {
+          model: this._model,
+          messages: [
+            createMessage("system", COMPACTION_PROMPT),
+            createMessage("user", `Transcript:\n\n${transcriptForSummary(removed)}`),
+          ],
+          tools: [],
+          temperature: 0.2,
+          maxTokens: COMPACTION_OUTPUT_TOKENS,
+          signal,
+        },
+        signal,
+        () => {},
+      );
+    } catch (error) {
+      if (isCancellation(error, signal)) throw error;
+      this.options.logger.warn("context compaction failed", { sessionId: this.id, error: messageOf(error) });
+      return emptyUsage();
+    }
+
+    const summary = response.content.trim();
+    if (!summary) {
+      this.options.logger.warn("context compaction returned no text", { sessionId: this.id });
+      return emptyUsage();
+    }
+
+    this.messageList = [
+      createMessage("assistant", `[Summary of the earlier conversation]\n\n${summary}`, {
+        model: this._model,
+        meta: { kind: "compaction", removedMessages: removed.length, tokensBefore: before },
+      }),
+      ...this.messageList.slice(cut),
+    ];
+    const after = this.estimateContextTokens();
+    this._updatedAt = new Date().toISOString();
+    this.persist();
+    this.emit({
+      type: "context.compacted",
+      sessionId: this.id,
+      removedMessages: removed.length,
+      keptMessages: this.messageList.length - 1,
+      tokensBefore: before,
+      tokensAfter: after,
+    });
+    this.options.logger.info("context compacted", { sessionId: this.id, before, after });
+    return response.usage;
+  }
+
   private promptMessages(): ChatMessage[] {
     const messages: ChatMessage[] = [];
     if (this._systemPrompt.trim()) {
@@ -485,4 +598,29 @@ function messageOf(error: unknown): string {
 function isCancellation(error: unknown, signal: AbortSignal): boolean {
   if (signal.aborted) return true;
   return error instanceof RunCancelledError || (error instanceof Error && error.name === "AbortError");
+}
+
+function messageTokens(message: ChatMessage): number {
+  const tools = message.toolCalls ? JSON.stringify(message.toolCalls) : "";
+  return estimateTokens(`${message.content}${message.reasoning ?? ""}${tools}`) + 4;
+}
+
+function transcriptForSummary(messages: ChatMessage[]): string {
+  const lines: string[] = [];
+  for (const message of messages) {
+    const calls = message.toolCalls?.map((call) => {
+      const args = JSON.stringify(call.arguments);
+      return `${call.name}(${args.length > 400 ? `${args.slice(0, 400)}...` : args})`;
+    });
+    const body = message.content.length > COMPACTION_MESSAGE_CHARS
+      ? `${message.content.slice(0, COMPACTION_MESSAGE_CHARS)}...`
+      : message.content;
+    const suffix = calls?.length ? ` [called ${calls.join(", ")}]` : "";
+    const name = message.toolName ? ` ${message.toolName}` : "";
+    lines.push(`${message.role}${name}: ${body}${suffix}`);
+  }
+  const transcript = lines.join("\n\n");
+  return transcript.length > COMPACTION_INPUT_CHARS
+    ? `...earlier transcript omitted...\n\n${transcript.slice(-COMPACTION_INPUT_CHARS)}`
+    : transcript;
 }
