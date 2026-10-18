@@ -32,8 +32,8 @@ export interface BrowserStatus {
   executable?: string;
 }
 
-/** Shared page exposed to other plugins through the `browser` service. */
-export interface BrowserService {
+/** One page, bound to one session. */
+export interface BrowserPage {
   open(url: string): Promise<BrowserSnapshot>;
   snapshot(): Promise<BrowserSnapshot>;
   click(ref: number): Promise<BrowserSnapshot>;
@@ -43,6 +43,14 @@ export interface BrowserService {
   screenshot(workspace: string, path?: string): Promise<{ path: string; bytes: number }>;
   status(): BrowserStatus;
   close(): Promise<void>;
+}
+
+/** Per-session pages, so concurrent sessions never share cookies or refs. */
+export interface BrowserService {
+  page(sessionId: string): BrowserPage;
+  status(sessionId: string): BrowserStatus;
+  close(sessionId: string): Promise<void>;
+  closeAll(): Promise<void>;
 }
 
 export interface BrowserOptions {
@@ -258,7 +266,7 @@ interface BrowserProcess {
  * method is serialised: parallel tool calls share a page, and interleaving them
  * would make refs and navigation races unpredictable.
  */
-export class BrowserController {
+export class BrowserController implements BrowserPage {
   private readonly options: ResolvedOptions;
   private browser?: BrowserProcess;
   private launch?: Promise<BrowserProcess>;
@@ -590,6 +598,69 @@ export class BrowserController {
       () => undefined,
     );
     return next;
+  }
+}
+
+interface PooledPage {
+  controller: BrowserController;
+  idleTimer?: NodeJS.Timeout;
+}
+
+/**
+ * Browsers are expensive to start and hold session cookies, so each session gets
+ * its own lazily created page. Idle pages are closed after `idleMs`; `closeAll`
+ * runs on plugin disposal.
+ */
+export class BrowserPool implements BrowserService {
+  private readonly pages = new Map<string, PooledPage>();
+
+  constructor(
+    private readonly options: BrowserOptions = {},
+    private readonly idleMs = 15 * 60_000,
+  ) {}
+
+  page(sessionId: string): BrowserPage {
+    const existing = this.pages.get(sessionId);
+    if (existing) {
+      this.touch(sessionId, existing);
+      return existing.controller;
+    }
+    const entry: PooledPage = { controller: new BrowserController(this.options) };
+    this.pages.set(sessionId, entry);
+    this.touch(sessionId, entry);
+    return entry.controller;
+  }
+
+  status(sessionId: string): BrowserStatus {
+    return this.pages.get(sessionId)?.controller.status() ?? { open: false };
+  }
+
+  async close(sessionId: string): Promise<void> {
+    const entry = this.pages.get(sessionId);
+    if (!entry) return;
+    this.pages.delete(sessionId);
+    if (entry.idleTimer) clearTimeout(entry.idleTimer);
+    await entry.controller.close();
+  }
+
+  async closeAll(): Promise<void> {
+    const entries = [...this.pages.values()];
+    this.pages.clear();
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.idleTimer) clearTimeout(entry.idleTimer);
+        await entry.controller.close();
+      }),
+    );
+  }
+
+  private touch(sessionId: string, entry: PooledPage): void {
+    if (entry.idleTimer) clearTimeout(entry.idleTimer);
+    if (this.idleMs <= 0) return;
+    entry.idleTimer = setTimeout(() => {
+      void this.close(sessionId);
+    }, this.idleMs);
+    entry.idleTimer.unref?.();
   }
 }
 

@@ -281,6 +281,7 @@ See [Subagents](/guide/subagents) for roles, budgets and observability.
 | `permission` | `ask` — approval for `browser_open` |
 | `timeoutMs` | `30000` |
 | `settleMs` | `250` |
+| `idleMs` | `900000` — close a session's unused page |
 | `maxTextChars` | `12000` |
 | `maxElements` | `120` |
 | `noSandbox` | auto — enabled on Linux in Docker, Kubernetes or as root |

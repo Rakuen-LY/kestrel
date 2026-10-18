@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { BrowserController, findBrowser, formatSnapshot, resolveScreenshotPath } from "../src/browser.js";
+import { BrowserController, BrowserPool, findBrowser, formatSnapshot, resolveScreenshotPath } from "../src/browser.js";
 
 const executable = findBrowser();
 const browser = executable
@@ -91,6 +91,29 @@ describe.skipIf(!browser)("browser controller", () => {
       await rm(workspace, { recursive: true, force: true });
     }
   }, 60_000);
+
+  it("gives each session its own page", async () => {
+    const pool = new BrowserPool({ executable, headless: true, timeoutMs: 20_000, settleMs: 100 }, 5_000);
+    try {
+      await pool.page("alpha").open(origin);
+      await pool.page("beta").open(`${origin}/next`);
+      expect((await pool.page("alpha").snapshot()).title).toBe("Browser fixture");
+      expect((await pool.page("beta").snapshot()).title).toBe("Second page");
+      await pool.close("alpha");
+      expect(pool.status("alpha").open).toBe(false);
+      expect(pool.status("beta").open).toBe(true);
+    } finally {
+      await pool.closeAll();
+    }
+  }, 30_000);
+
+  it("evicts an idle page", async () => {
+    const pool = new BrowserPool({ executable }, 50);
+    pool.page("idle");
+    expect(pool.status("idle").open).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(pool.status("idle").open).toBe(false);
+  });
 
   it("rejects non-web URLs and stale refs", async () => {
     await expect(browser!.open("file:///etc/passwd")).rejects.toThrow("Only http and https");

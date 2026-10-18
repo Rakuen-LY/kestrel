@@ -98,6 +98,10 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Changed
 
+- Browser pages are session-scoped: each session gets its own browser process, cookies and refs,
+  created lazily and evicted after `idleMs` (15 minutes by default). Other plugins call
+  `browser.page(sessionId)`; `closeAll()` still runs on plugin disposal.
+
 - `SessionStore` paths and `SessionManager.create()` are tenant-aware; the default tenant keeps the
   v0.1 `<data>/sessions` layout, so existing data directories need no migration.
 

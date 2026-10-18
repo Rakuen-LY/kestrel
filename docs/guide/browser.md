@@ -48,6 +48,7 @@ environment variable. Other agent capabilities keep working.
 | `permission` | `"ask"` | Approval policy for `browser_open`. Interactions stay automatic. |
 | `timeoutMs` | `30000` | Launch, navigation and command timeout. |
 | `settleMs` | `250` | Extra wait after `load` for client-side rendering. |
+| `idleMs` | `900000` | Close a session's unused page after 15 minutes; `0` disables eviction. |
 | `maxTextChars` | `12000` | Visible text retained per snapshot. |
 | `maxElements` | `120` | Interactive elements retained per snapshot. |
 | `noSandbox` | auto | Pass `--no-sandbox` in containers without usable user namespaces. |
@@ -95,18 +96,22 @@ inspect the file. Paths outside the workspace are rejected.
 
 ## Programmatic use
 
-Other plugins can consume the shared page through the `browser` service:
+Other plugins can consume a session's page through the `browser` service:
 
 ```ts
 const browser = context.get("browser");
-const page = await browser.open("https://example.com");
-const button = page.elements.find((element) => element.text === "Sign in");
-if (button) await browser.click(button.ref);
+const page = browser.page(sessionId);
+const snapshot = await page.open("https://example.com");
+const button = snapshot.elements.find((element) => element.text === "Sign in");
+if (button) await page.click(button.ref);
 ```
 
-The service exposes `open`, `snapshot`, `click`, `type`, `scroll`, `back`, `screenshot`, `status`
-and `close`. Calls are serialised over one page, which keeps refs and navigation deterministic.
-The service is declared in `ServiceMap`, so TypeScript checks the usage.
+The service exposes `page(sessionId)`, `status(sessionId)`, `close(sessionId)` and `closeAll()`.
+The returned page has `open`, `snapshot`, `click`, `type`, `scroll`, `back`, `screenshot`, `status`
+and `close`. Calls are serialised over that page, which keeps refs and navigation deterministic;
+different sessions run on separate pages and never share cookies or refs. Pages are created lazily
+and closed after `idleMs` without use. The service is declared in `ServiceMap`, so TypeScript checks
+the usage.
 
 ## Security
 
@@ -115,8 +120,8 @@ The service is declared in `ServiceMap`, so TypeScript checks the usage.
   of them.
 - Pages are untrusted input. Prompt injection in page text is possible; the agent prompt already
   treats tool output as data, and approvals remain the control for consequential actions.
-- The browser profile is a fresh temporary directory per process and is deleted on close. Cookies
-  and logins do not survive a restart.
+- Each session has its own browser process and temporary profile. Cookies and logins are not
+  visible to other sessions and do not survive a restart or an idle close.
 - Only `http:` and `https:` URLs are accepted. `file:`, `data:` and browser-internal URLs are
   rejected, so the page cannot read the host filesystem through a URL.
 - The tool does not expose arbitrary JavaScript evaluation. Snapshot, click and type operate on
@@ -129,7 +134,7 @@ The service is declared in `ServiceMap`, so TypeScript checks the usage.
 
 ## Limits
 
-- One page per plugin instance; no tabs, popups or downloads.
+- One page per session; no tabs, popups or downloads.
 - No file upload or download handling.
 - No persistent profile, cookie import or authenticated-session reuse.
 - No video, canvas or WebGL assertions; screenshots capture what the compositor produced.

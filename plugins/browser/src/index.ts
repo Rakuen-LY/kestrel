@@ -1,19 +1,22 @@
-import type { JsonSchema, Tool } from "@kestrel/agent";
+import type { JsonSchema, Tool, ToolContext } from "@kestrel/agent";
 import type { Context, PluginDefinition } from "@kestrel/kernel";
 import {
-  BrowserController,
+  BrowserPool,
   formatSnapshot,
   type BrowserOptions,
+  type BrowserPage,
   type BrowserService,
   type BrowserSnapshot,
 } from "./browser.js";
 
-export type { BrowserElement, BrowserOptions, BrowserService, BrowserSnapshot } from "./browser.js";
-export { BrowserController, findBrowser, formatSnapshot, resolveScreenshotPath } from "./browser.js";
+export type { BrowserElement, BrowserOptions, BrowserPage, BrowserService, BrowserSnapshot } from "./browser.js";
+export { BrowserController, BrowserPool, findBrowser, formatSnapshot, resolveScreenshotPath } from "./browser.js";
 
 export interface BrowserConfig extends BrowserOptions {
   /** Permission for opening a URL. Interactions on an approved page stay automatic. */
   permission?: "ask" | "auto";
+  /** Close an unused page after this many milliseconds; 0 disables eviction. */
+  idleMs?: number;
 }
 
 const plugin: PluginDefinition<BrowserConfig> = {
@@ -23,27 +26,15 @@ const plugin: PluginDefinition<BrowserConfig> = {
   inject: ["tools"],
   apply(context: Context, config: BrowserConfig = {}) {
     const tools = context.get("tools");
-    const controller = new BrowserController(config);
+    const service = new BrowserPool(config, config.idleMs ?? 15 * 60_000);
     const permission = config.permission ?? "ask";
-
-    const service: BrowserService = {
-      open: (url) => controller.open(url),
-      snapshot: () => controller.snapshot(),
-      click: (ref) => controller.click(ref),
-      type: (ref, text, submit) => controller.type(ref, text, submit),
-      scroll: (direction, amount) => controller.scroll(direction, amount),
-      back: () => controller.back(),
-      screenshot: (workspace, path) => controller.screenshot(workspace, path),
-      status: () => controller.status(),
-      close: () => controller.close(),
-    };
 
     for (const tool of createBrowserTools(service, permission)) {
       context.effect(() => tools.register(tool));
     }
     context.provide("browser", service);
     context.effect(() => () => {
-      void controller.close();
+      void service.closeAll();
     });
     context.logger.info("browser tools registered", {
       permission,
@@ -66,8 +57,8 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
         permission,
         parameters: schema({ url: { type: "string", description: "Absolute HTTP or HTTPS URL." } }, ["url"]),
       },
-      async execute(args) {
-        return result(await service.open(text(args, "url")));
+      async execute(args, toolContext) {
+        return result(await page(service, toolContext).open(text(args, "url")));
       },
     },
     {
@@ -79,8 +70,8 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
         permission: "auto",
         parameters: schema({}),
       },
-      async execute() {
-        return result(await service.snapshot());
+      async execute(_args, toolContext) {
+        return result(await page(service, toolContext).snapshot());
       },
     },
     {
@@ -97,8 +88,8 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
           ["ref"],
         ),
       },
-      async execute(args) {
-        return result(await service.click(positive(args, "ref")));
+      async execute(args, toolContext) {
+        return result(await page(service, toolContext).click(positive(args, "ref")));
       },
     },
     {
@@ -117,9 +108,9 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
           ["ref", "text"],
         ),
       },
-      async execute(args) {
+      async execute(args, toolContext) {
         return result(
-          await service.type(positive(args, "ref"), text(args, "text", true), args.submit === true),
+          await page(service, toolContext).type(positive(args, "ref"), text(args, "text", true), args.submit === true),
         );
       },
     },
@@ -134,10 +125,10 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
           amount: { type: "integer", description: "Pixels to scroll, default 700." },
         }),
       },
-      async execute(args) {
+      async execute(args, toolContext) {
         const direction = args.direction === "up" ? "up" : "down";
         const amount = typeof args.amount === "number" ? Math.min(5_000, Math.max(50, Math.floor(args.amount))) : 700;
-        return result(await service.scroll(direction, amount));
+        return result(await page(service, toolContext).scroll(direction, amount));
       },
     },
     {
@@ -148,8 +139,8 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
         permission: "auto",
         parameters: schema({}),
       },
-      async execute() {
-        return result(await service.back());
+      async execute(_args, toolContext) {
+        return result(await page(service, toolContext).back());
       },
     },
     {
@@ -167,7 +158,7 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
         }),
       },
       async execute(args, toolContext) {
-        const shot = await service.screenshot(
+        const shot = await page(service, toolContext).screenshot(
           toolContext.session.workspace,
           typeof args.path === "string" && args.path.trim() ? args.path.trim() : undefined,
         );
@@ -185,12 +176,16 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
         permission: "auto",
         parameters: schema({}),
       },
-      async execute() {
-        await service.close();
+      async execute(_args, toolContext) {
+        await service.close(toolContext.session.id);
         return { content: "Browser closed." };
       },
     },
   ];
+}
+
+function page(service: BrowserService, context: ToolContext): BrowserPage {
+  return service.page(context.session.id);
 }
 
 function result(snapshot: BrowserSnapshot) {
