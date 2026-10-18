@@ -18,6 +18,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Memory tools and MCP bridge (stdio and streamable HTTP) | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
 | Plugin UI contributions: browser bundles rendered in console slots | Done |
+| Workspace file browser and `file.viewer` previews | Done |
 | Workspace checkpoints, rewind and safety snapshots | Done |
 | Context compaction with a model-written summary | Done |
 | Accounts, roles and tenant isolation (`auth.mode: "accounts"`) | Done |
@@ -36,15 +37,16 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 
 ### 2. Plugin UI hardening
 
-Bundles load into five slots (`sidebar.footer`, `session.header`, `settings.section`,
-`message.after`, `composer.actions`) from a plugin's `web/` directory, each in a sandboxed iframe
-with an opaque origin and a proxied API. The remaining work is about capability, not isolation:
+Bundles load into six slots (`sidebar.footer`, `session.header`, `settings.section`,
+`message.after`, `composer.actions`, `file.viewer`) from a plugin's `web/` directory, each in a
+sandboxed iframe with an opaque origin and a proxied API. The remaining work is about capability, not isolation:
 
 - ~~Per-plugin route grants~~ — `web.api` defaults to read-only and mutating routes must be
   declared; the proxy rejects anything else.
 - ~~Message and composer slots~~ — `message.after` filters by role and tool name, and
-  `composer.actions` can propose a prompt through `context.composer.submit`. A file viewer slot
-  remains.
+  `composer.actions` can propose a prompt through `context.composer.submit`.
+- ~~File viewer slot~~ — `file.viewer` claims extensions and takes over the preview pane while the
+  built-in Source tab stays available.
 - A dev channel that reloads a bundle without a page refresh.
 
 See [Plugin UI](/guide/plugin-ui).
