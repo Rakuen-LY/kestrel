@@ -124,6 +124,7 @@ const BROWSER_NAMES = [
 function containerWithoutUserNamespaces(): boolean {
   if (process.platform !== "linux") return false;
   return (
+    process.env.KESTREL_BROWSER_NO_SANDBOX === "1" ||
     process.getuid?.() === 0 ||
     existsSync("/.dockerenv") ||
     Boolean(process.env.KUBERNETES_SERVICE_HOST) ||
@@ -461,7 +462,7 @@ export class BrowserController implements BrowserPage {
   private async ensure(): Promise<BrowserProcess> {
     if (this.browser) return this.browser;
     if (this.launch) return this.launch;
-    this.launch = this.launchBrowser();
+    this.launch = this.start();
     try {
       this.browser = await this.launch;
       return this.browser;
@@ -475,7 +476,25 @@ export class BrowserController implements BrowserPage {
     return this.browser;
   }
 
-  private async launchBrowser(): Promise<BrowserProcess> {
+  /**
+   * Chrome refuses to start with its setuid sandbox on hosts that lack
+   * unprivileged user namespaces — hardened CI images, some VM guests — and
+   * exits before printing a DevTools endpoint. Retry once without it rather
+   * than surfacing an opaque startup crash.
+   */
+  private async start(): Promise<BrowserProcess> {
+    try {
+      return await this.launchBrowser(this.options.noSandbox);
+    } catch (error) {
+      if (this.options.noSandbox || process.platform !== "linux") throw error;
+      this.options.noSandbox = true;
+      return this.launchBrowser(true).catch(() => {
+        throw error;
+      });
+    }
+  }
+
+  private async launchBrowser(noSandbox: boolean): Promise<BrowserProcess> {
     const executable = this.options.executable ?? findBrowser();
     if (!executable) {
       throw new Error(
@@ -499,7 +518,7 @@ export class BrowserController implements BrowserPage {
       "--hide-scrollbars",
       "--mute-audio",
       "--window-size=1280,800",
-      ...(this.options.noSandbox ? ["--no-sandbox"] : []),
+      ...(noSandbox ? ["--no-sandbox"] : []),
       ...this.options.args,
       "about:blank",
     ];

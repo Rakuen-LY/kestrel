@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -141,8 +141,34 @@ describe.skipIf(!browser)("browser controller", () => {
 
   it("rejects non-web URLs and stale refs", async () => {
     await expect(browser!.open("file:///etc/passwd")).rejects.toThrow("Only http and https");
+    await browser!.open(origin);
     await expect(browser!.click(9_999)).rejects.toThrow("Unknown element ref");
-  });
+  }, 30_000);
+
+  it("retries without the sandbox when the browser refuses to start", async () => {
+    if (process.platform !== "linux") return;
+    const directory = await mkdtemp(join(tmpdir(), "kestrel-sandbox-"));
+    const wrapper = join(directory, "chrome-wrapper");
+    await writeFile(
+      wrapper,
+      `#!/bin/sh\ncase " $* " in *" --no-sandbox "*) exec "${executable}" "$@";; esac\necho "Failed to move to new namespace" >&2\nexit 1\n`,
+      { mode: 0o755 },
+    );
+    const controller = new BrowserController({
+      executable: wrapper,
+      headless: true,
+      noSandbox: false,
+      timeoutMs: 20_000,
+      settleMs: 100,
+    });
+    try {
+      const page = await controller.open(origin);
+      expect(page.title).toBe("Browser fixture");
+    } finally {
+      await controller.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 40_000);
 
   it("closes and reopens", async () => {
     await browser!.close();

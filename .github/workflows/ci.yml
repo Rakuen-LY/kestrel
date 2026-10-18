@@ -36,6 +36,10 @@ jobs:
       - run: pnpm version:check
       - run: pnpm typecheck
       - run: pnpm lint
+      # The browser plugin drives a real Chromium. Fail loudly here rather than
+      # letting its suite skip itself when a runner image stops shipping one.
+      - name: Assert a Chromium-compatible browser
+        run: command -v google-chrome || command -v google-chrome-stable || command -v chromium
       - run: pnpm test
       - run: pnpm build
       # Boots the compiled server against a scratch workspace: health, auth,
