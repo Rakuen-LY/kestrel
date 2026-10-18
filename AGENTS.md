@@ -204,3 +204,12 @@ characters before postMessage; plugins that need more call the file API themselv
   without user namespaces. `browser_screenshot` writes a file and, with `include_image: true`,
   returns the bytes to the model; JPEG format and quality keep big pages affordable. Tests skip
   when no Chromium binary exists.
+- Plugin hot reload is opt-in (`plugins.hotReload`, poll interval `hotReloadIntervalMs`). The
+  server fingerprints web assets and streams revisions on `GET /api/plugins/events`; the console
+  appends `?v=<revision>` to entry and stylesheet URLs and keys mounts on the revision map so only
+  the changed plugin remounts. The stream accepts `?token=` because `EventSource` cannot set headers.
+  Verification without a browser UI: tag iframe elements via CDP, touch a plugin file, and confirm
+  the changed plugin's iframe is a new node while untouched plugin iframes keep their identity.
+- The console's static server sends `default-src 'self'`, so inline `<script>` probes are blocked;
+  use an external `.js` file when testing by hand. The `browser_get_content` snapshot can be stale
+  after DOM mutations without interaction; read live state with CDP `Runtime.evaluate` instead.
