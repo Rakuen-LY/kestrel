@@ -35,6 +35,7 @@ Useful commands:
 | `pnpm test:watch` | Vitest in watch mode. |
 | `pnpm version:check` | Assert the version is identical in source, manifests and workspace packages. |
 | `pnpm smoke` | Boot the built server and assert the release-facing HTTP surface. Run after `pnpm build`. |
+| `pnpm release:prepare <version>` | Roll the changelog, bump every manifest, commit and tag a release. |
 | `pnpm docs:dev` | Documentation site with hot reload. |
 
 ## Repository layout

@@ -28,28 +28,36 @@ changelog under **Changed**, and the previous minor line keeps receiving fixes.
 
 1. **Decide the version.** Patch for fixes, minor for features, major for a breaking plugin or
    protocol contract.
-2. **Bump every record at once.**
+
+2. **Write the changelog.** Add entries under `## [Unreleased]` using the Keep a Changelog
+   headings. The release workflow extracts exactly the section for the new version as the GitHub
+   release body and refuses to publish an empty or placeholder section.
+
+3. **Cut the release.** One command does the rest — it refuses to run on a dirty tree, a tag that
+   already exists, or an empty unreleased section:
 
    ```bash
-   pnpm version:set 0.2.0
-   pnpm version:check
+   pnpm release:prepare 0.2.0 --dry-run   # print the bump and the section roll
+   pnpm release:prepare 0.2.0
    ```
 
-   The script rewrites the version constant and all workspace manifests. `pnpm version:check`
-   fails if any of them drift.
-3. **Write the changelog.** Move the relevant entries out of `## [Unreleased]` into a new
-   `## [0.2.0] - YYYY-MM-DD` section using the Keep a Changelog headings. The release workflow
-   extracts exactly this section as the GitHub release body and refuses to publish an empty or
-   placeholder section.
-4. **Land the release commit on `main`.** CI must be green — see the gates below.
-5. **Tag and push.**
+   It rolls `## [Unreleased]` into `## [0.2.0] - <date>`, leaves a fresh unreleased section,
+   rewrites every manifest and `KESTREL_VERSION`, verifies `pnpm version:check` and the changelog
+   extraction, commits `chore(release): 0.2.0`, and creates the annotated tag `v0.2.0`. Pass
+   `--sign` to make it a GPG/SSH-signed tag when a key is configured.
+
+4. **Push the commit and the tag together.** This is the only step that needs a credential, and
+   it is deliberately the only one:
 
    ```bash
-   git tag -a v0.2.0 -m "Kestrel 0.2.0"
-   git push origin v0.2.0
+   git push --follow-tags origin main
    ```
 
-6. **Watch the release workflow**, then verify the published image (see below).
+Everything after that push is automatic. The workflow derives the image name from the repository
+(`ghcr.io/<owner>/<repo>`), takes its registry credential from `GITHUB_TOKEN`, and signs the image
+with GitHub's OIDC identity, so there is nothing to configure and no repository secret to rotate.
+
+5. **Watch the release workflow**, then verify the published image (see below).
 
 ## What CI enforces
 

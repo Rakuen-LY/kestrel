@@ -15,6 +15,7 @@ Kestrel is a pnpm + TypeScript (ESM, Node 22) monorepo for a plugin-first agent 
 | `node apps/cli/dist/index.js run "..."` | Run the agent once after building. |
 | `node apps/cli/dist/index.js skills` | List workspace skills (`show <name>` for a body). |
 | `node apps/server/dist/bin.js` | Start the HTTP server after building. |
+| `pnpm release:prepare <version>` | Cut a release: roll changelog, bump manifests, commit, tag. |
 
 ## Architecture invariants
 
