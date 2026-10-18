@@ -80,7 +80,8 @@ describe("docker sandbox", () => {
 
     const result = await sandbox.exec({ ...options(), timeoutMs: 150 });
     expect(result.timedOut).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // exec settles only after the removal process has exited, so the log is
+    // complete here without waiting on a timer.
     expect(await readFile(log, "utf8")).toMatch(/rm -f kestrel-sbx-/);
   });
 
@@ -93,6 +94,7 @@ describe("docker sandbox", () => {
     const result = await sandbox.exec({ ...options(), signal: controller.signal });
     expect(result.code).toBeNull();
     expect(result.timedOut).toBe(false);
+    expect(await readFile(log, "utf8")).toMatch(/rm -f kestrel-sbx-/);
   });
 
   it("fails closed when Docker is missing", async () => {

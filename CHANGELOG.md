@@ -164,6 +164,10 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Fixed
 
+- The Docker sandbox waited for `docker rm -f` before `exec` settled. The removal process was
+  spawned and unref'd, so a timeout or abort could resolve while the container was still being
+  deleted — and a caller that dropped its workspace immediately raced the removal, which surfaced
+  as a flaky `ENOTEMPTY` in CI.
 - The browser plugin retried a failed launch without Chromium's sandbox. Chrome exits before
   printing a DevTools endpoint on hosts that lack unprivileged user namespaces — hardened CI
   images, some VM guests — so the plugin now retries once with `--no-sandbox` and reports the

@@ -106,14 +106,20 @@ export class DockerSandbox implements Sandbox {
       let timedOut = false;
       let settled = false;
 
+      // Removal runs in its own process, so exec must not settle before it has
+      // exited: a caller that returns and immediately drops the workspace would
+      // otherwise race an orphaned `docker rm -f`.
+      let removal: Promise<void> = Promise.resolve();
       const cleanup = (): void => {
         try {
           const killer = spawn(this.config.docker, ["rm", "-f", name], {
             stdio: "ignore",
             windowsHide: true,
           });
-          killer.on("error", () => {});
-          killer.unref?.();
+          removal = new Promise<void>((resolveRemoval) => {
+            killer.on("error", () => resolveRemoval());
+            killer.on("close", () => resolveRemoval());
+          });
         } catch {
           // The container may never have been created; nothing to clean up.
         }
@@ -132,12 +138,12 @@ export class DockerSandbox implements Sandbox {
       };
       options.signal?.addEventListener("abort", onAbort, { once: true });
 
-      const finish = (complete: () => void): void => {
+      const finish = (complete: () => void | Promise<void>): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         options.signal?.removeEventListener("abort", onAbort);
-        complete();
+        void complete();
       };
 
       child.stdout?.on("data", (chunk: Buffer) => {
@@ -150,7 +156,10 @@ export class DockerSandbox implements Sandbox {
         finish(() => reject(new Error(`Failed to start container: ${error.message}`)));
       });
       child.on("close", (code) => {
-        finish(() => resolveResult({ code, stdout, stderr, timedOut }));
+        finish(async () => {
+          await removal;
+          resolveResult({ code, stdout, stderr, timedOut });
+        });
       });
     });
   }
