@@ -138,6 +138,10 @@ never contains agent logic.
   workspace read-write at the same absolute path, run with the server UID on POSIX, and default to
   `--network none`. Killing the Docker CLI does not stop a container, so timeouts and aborts run
   `docker rm -f <name>` as well.
+- Guards are synchronous and must stay O(in-memory state); the runtime calls them from `create()`
+  and from `start()`/`resume()` before mutating the transcript. Only `SessionGuardError` maps to 429;
+  anything else is a 500 on purpose. Guard errors are detected structurally (`name` + `code`)
+  because plugin bundles can carry a second copy of `@kestrel/agent`.
 - Metrics are memory-only and must stay low-cardinality; never label by session or user id. The
   plugin exposes one shared `MetricRegistry` through the `metrics` service, and summaries are stored
   as `__sum__`/`__count__` series folded back at snapshot time.

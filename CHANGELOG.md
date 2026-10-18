@@ -8,6 +8,11 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Session guards: `SessionManager.addGuard()` lets a plugin veto session creation and run launches.
+  A rejected action throws `SessionGuardError`, which the HTTP server reports as `429` with
+  `Retry-After` and the CLI prints verbatim. Guards run before the transcript is touched.
+- `@kestrel/plugin-quota`: per-tenant `maxSessions`, `maxConcurrentRuns` and `maxTokens` limits, plus
+  `GET /api/quotas` and a `quotas` service.
 - `@kestrel/plugin-metrics`: in-process counters, gauges and summaries with
   `GET /api/metrics` (JSON) and `GET /api/metrics/prometheus` (text) for administrators. A `metrics`
   service lets other plugins publish their own series, including scrape-time collectors.

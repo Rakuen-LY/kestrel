@@ -6,7 +6,14 @@ import { defaultSystemPrompt, subagentSystemPrompt } from "./prompt.js";
 import type { PromptPipeline } from "./prompts.js";
 import type { SessionStore } from "./store.js";
 import type { ModelRegistry, ToolRegistry } from "./registry.js";
-import type { ApprovalHandler, CompactionOptions, PermissionResolver, RunResult } from "./types.js";
+import type {
+  ApprovalHandler,
+  CompactionOptions,
+  PermissionResolver,
+  RunResult,
+  SessionGuard,
+  SessionGuardContext,
+} from "./types.js";
 
 export class SessionNotFoundError extends Error {
   readonly code = "session_not_found";
@@ -58,6 +65,7 @@ export interface SessionManagerOptions {
 export class SessionManager {
   private readonly sessions = new Map<string, AgentSession>();
   private readonly listeners = new Set<(event: SessionEvent) => void>();
+  private readonly guards = new Set<SessionGuard>();
   private initialized = false;
 
   constructor(private readonly options: SessionManagerOptions) {}
@@ -82,6 +90,23 @@ export class SessionManager {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * Registers a veto over session creation and run launches. Policy plugins use
+   * this to enforce quotas, maintenance windows or model allow-lists without
+   * the runtime knowing what a quota is.
+   */
+  addGuard(guard: SessionGuard): () => void {
+    this.guards.add(guard);
+    return () => {
+      this.guards.delete(guard);
+    };
+  }
+
+  /** @throws SessionGuardError when a guard rejects the action. */
+  checkGuards(context: SessionGuardContext): void {
+    for (const guard of this.guards) guard(context);
+  }
+
   publish(event: SessionEvent): void {
     for (const listener of Array.from(this.listeners)) {
       try {
@@ -93,6 +118,11 @@ export class SessionManager {
   }
 
   create(request: CreateSessionRequest = {}, tenantId?: string): AgentSession {
+    this.checkGuards({
+      action: "create",
+      tenantId: tenantId ?? "default",
+      request: { title: request.title, model: request.model, workspace: request.workspace },
+    });
     const id = randomUUID();
     const workspace = request.workspace ?? this.options.defaultWorkspace;
     const model = request.model ?? this.defaultModel();
@@ -272,6 +302,12 @@ export class SessionManager {
       logger: this.options.logger.child({ sessionId: id }),
       approve: this.options.approve,
       resolvePermission: this.options.resolvePermission,
+      beforeRun: () =>
+        this.checkGuards({
+          action: "run",
+          tenantId: input.tenantId ?? "default",
+          sessionId: id,
+        }),
       emit: (event) => this.publish(event),
       onPersist: (session) => {
         void this.options.store?.save(session.detail()).catch((error: unknown) => {

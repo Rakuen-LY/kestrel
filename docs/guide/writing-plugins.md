@@ -136,7 +136,45 @@ export default {
 The host may load them in either order. If `wordCount` is removed, the dependent injection is
 disposed automatically.
 
-## 4. Add a model provider
+## 4. Expose an HTTP endpoint
+
+A plugin can extend the server's API through the `http.routes` service. Paths must live under
+`/api/`, so a plugin can never shadow the console or a static asset:
+
+```ts
+export default {
+  name: "@acme/plugin-webhooks",
+  version: "0.1.0",
+  inject: ["http.routes"],
+  apply(context) {
+    const routes = context.get("http.routes");
+    context.effect(() =>
+      routes.route({
+        method: "GET",
+        path: "/api/webhooks/:id/deliveries",
+        handler: async (request) => ({
+          status: 200,
+          body: { id: request.params.id, limit: Number(request.query.limit ?? 20) },
+        }),
+      }),
+    );
+  },
+};
+```
+
+The handler receives the path params, query, headers, parsed JSON body and the authenticated
+`principal` (unless the route is marked `public`). Return `{ status, body }` for JSON. For text
+formats, return `{ raw, headers: { "content-type": "text/plain" } }`; `raw` is written verbatim.
+Throwing is a `500` with `plugin_route_failed`, so validate input and return `4xx` instead.
+
+Two rules keep plugin APIs predictable:
+
+- Routes are registered in load order; the first registration of a path wins.
+- A route is private by default. Mark it `public: true` only for content that is safe without a
+  token, and authenticate secrets yourself (the triggers plugin compares an HMAC-like header with
+  `timingSafeEqual`).
+
+## 5. Add a model provider
 
 A provider is a plugin that registers a `LanguageModel`:
 
@@ -182,7 +220,7 @@ export default {
 
 See [Models & providers](/guide/models) for the full contract.
 
-## 5. Test it
+## 6. Test it
 
 `@kestrel/testkit` provides a scripted model and helpers. Build a context with the services the
 plugin injects, start it, and assert on the registry:
@@ -224,7 +262,7 @@ describe("word-count", () => {
 For full-loop tests, construct a `SessionManager` with a `ScriptedModel`; see
 `packages/agent/test/session.test.ts` for a working example. Run the suite with `pnpm test`.
 
-## 6. Ship it
+## 7. Ship it
 
 - Build with `tsup` so the entry is a single ESM file.
 - Keep `@kestrel/*` packages external; the host provides them at runtime.

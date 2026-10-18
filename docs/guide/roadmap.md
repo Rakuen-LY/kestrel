@@ -90,10 +90,13 @@ See [Plugin UI](/guide/plugin-ui).
 ### 7. Platform features
 
 - Plugin registry with signatures and provenance.
-- OIDC and SSO on top of the accounts model; per-tenant quotas and usage accounting.
+- OIDC and SSO on top of the accounts model.
+- ~~Per-tenant quotas~~ — `@kestrel/plugin-quota` enforces session, concurrency and token limits
+  through session guards; see [Quotas & guards](/guide/quotas). Open: shared counters across
+  replicas and timed budget windows.
 - ~~Metrics and an audit log of tool executions~~ — `@kestrel/plugin-metrics` serves Prometheus text
   and a plugin-facing registry; `@kestrel/plugin-audit` keeps a JSONL trail. Still open: an
-  OpenTelemetry exporter and per-tenant quotas. See [Metrics](/guide/metrics) and
+  OpenTelemetry exporter. See [Metrics](/guide/metrics) and
   [Audit log](/guide/audit).
 - ~~Scheduled and event-triggered runs~~ — webhooks and UTC cron schedules ship in
   `@kestrel/plugin-triggers`; file watchers and durable delivery history are still open.

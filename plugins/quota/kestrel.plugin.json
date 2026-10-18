@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-quota",
+  "version": "0.1.0",
+  "description": "Per-tenant session, concurrency and token limits enforced through session guards.",
+  "entry": "dist/index.js",
+  "inject": ["sessions", "http.routes"],
+  "config": {
+    "enabled": true,
+    "default": {},
+    "tenants": {}
+  }
+}

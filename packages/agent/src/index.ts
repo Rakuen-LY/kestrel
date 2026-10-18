@@ -21,8 +21,11 @@ export {
   titleFromInput,
   toolMessage,
 } from "./messages.js";
+export { SessionGuardError, isSessionGuardError } from "./types.js";
 export type {
   AgentSessionOptions,
+  SessionGuard,
+  SessionGuardContext,
   ApprovalHandler,
   CompactionOptions,
   CompletionRequest,

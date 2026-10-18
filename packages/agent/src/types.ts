@@ -132,6 +132,52 @@ export interface AgentSessionOptions {
   approve?: ApprovalHandler;
   resolvePermission?: PermissionResolver;
   onPersist?: (session: AgentSession) => void;
+  /** Runs immediately before a run is launched; throwing cancels the start. */
+  beforeRun?: (session: AgentSession) => void;
+}
+
+/**
+ * A synchronous veto over session creation and run launches. Throwing
+ * `SessionGuardError` rejects the action and surfaces the message to the
+ * caller; any other error is treated as a bug and reported as a 500.
+ *
+ * Guards run in registration order on the event loop, so they must be cheap:
+ * count what is already in memory instead of awaiting I/O.
+ */
+export interface SessionGuardContext {
+  action: "create" | "run";
+  tenantId: string;
+  /** Present for `run`, absent for `create`. */
+  sessionId?: string;
+  /** Present for `create`, absent for `run`. */
+  request?: { title?: string; model?: string; workspace?: string };
+}
+
+export type SessionGuard = (context: SessionGuardContext) => void;
+
+export class SessionGuardError extends Error {
+  readonly code: string;
+  readonly retryAfterSeconds?: number;
+  constructor(code: string, message: string, options: { retryAfterSeconds?: number } = {}) {
+    super(message);
+    this.name = "SessionGuardError";
+    this.code = code;
+    this.retryAfterSeconds = options.retryAfterSeconds;
+  }
+}
+
+/**
+ * Structural check, because a plugin bundle may contain its own copy of this
+ * class: `instanceof` fails across module instances, while `name` and `code`
+ * survive bundling and serialization.
+ */
+export function isSessionGuardError(error: unknown): error is SessionGuardError {
+  if (error instanceof SessionGuardError) return true;
+  return (
+    error instanceof Error &&
+    error.name === "SessionGuardError" &&
+    typeof (error as { code?: unknown }).code === "string"
+  );
 }
 
 export interface RunResult {

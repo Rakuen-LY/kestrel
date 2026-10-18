@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { request as httpRequest, type IncomingMessage, type Server } from "node:http";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { Tool } from "@kestrel/agent";
+import { SessionGuardError, type Tool } from "@kestrel/agent";
 import { ScriptedModel, type ScriptedTurn } from "@kestrel/testkit";
 import { createRuntime, type Runtime } from "../src/runtime.js";
 import { createHttpServer } from "../src/http.js";
@@ -275,6 +275,44 @@ describe("plugin HTTP routes", () => {
 });
 
 describe("HTTP API", () => {
+  it("reports a guard veto as 429 with a retry hint", async () => {
+    const harness = await boot();
+    harness.runtime.sessions.addGuard(() => {
+      throw new SessionGuardError("quota_exceeded", "Tenant is out of quota.", { retryAfterSeconds: 7 });
+    });
+
+    const response = await fetch(`${harness.base}/api/sessions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ title: "blocked" }),
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("7");
+    expect(await response.json()).toMatchObject({
+      error: { code: "quota_exceeded", message: "Tenant is out of quota." },
+    });
+  });
+
+  it("recognises a guard error raised by a separately bundled plugin", async () => {
+    const harness = await boot();
+    harness.runtime.sessions.addGuard(() => {
+      // Shaped like SessionGuardError but from another module instance, which is
+      // what a plugin built against its own copy of @kestrel/agent throws.
+      throw Object.assign(new Error("Nested limit reached."), {
+        name: "SessionGuardError",
+        code: "quota_exceeded",
+      });
+    });
+
+    const response = await fetch(`${harness.base}/api/sessions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ title: "blocked" }),
+    });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: { code: "quota_exceeded" } });
+  });
+
   it("serves health without auth and protects everything else", async () => {
     const harness = await boot();
     const health = await fetch(`${harness.base}/api/health`);

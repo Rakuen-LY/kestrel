@@ -28,7 +28,9 @@ class SessionManager {
   initialize(): Promise<void>;
   subscribe(listener: (event: SessionEvent) => void): () => void;
   publish(event: SessionEvent): void;          // used by adapters/tests
-  create(request?: CreateSessionRequest): AgentSession;
+  addGuard(guard: SessionGuard): () => void;   // veto create/run; see Quotas
+  checkGuards(context: SessionGuardContext): void;  // throws SessionGuardError
+  create(request?: CreateSessionRequest, tenantId?: string): AgentSession;
   get(id: string): AgentSession;               // throws SessionNotFoundError
   has(id: string): boolean;
   list(): SessionSummary[];

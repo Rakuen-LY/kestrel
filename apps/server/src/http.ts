@@ -13,7 +13,7 @@ import {
   type PluginHttpRequest,
   type SendMessageRequest,
 } from "@kestrel/protocol";
-import { addUsage, emptyUsage, SessionNotFoundError } from "@kestrel/agent";
+import { addUsage, emptyUsage, isSessionGuardError, SessionNotFoundError } from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
 import { CheckpointError } from "./checkpoints.js";
@@ -832,21 +832,31 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
       ? error.status
       : error instanceof SessionNotFoundError
         ? 404
-        : error instanceof CheckpointError
-          ? error.status
-          : 500;
+        : isSessionGuardError(error)
+          ? 429
+          : error instanceof CheckpointError
+            ? error.status
+            : 500;
   const code =
     error instanceof HttpError
       ? error.code
       : error instanceof SessionNotFoundError
         ? "session_not_found"
-        : error instanceof CheckpointError
+        : isSessionGuardError(error)
           ? error.code
-          : "internal_error";
+          : error instanceof CheckpointError
+            ? error.code
+            : "internal_error";
   const message =
-    error instanceof HttpError || error instanceof SessionNotFoundError || error instanceof CheckpointError
+    error instanceof HttpError ||
+    error instanceof SessionNotFoundError ||
+    isSessionGuardError(error) ||
+    error instanceof CheckpointError
       ? error.message
       : "The server hit an unexpected error. Check the server logs for details.";
+  if (isSessionGuardError(error) && error.retryAfterSeconds) {
+    res.setHeader("retry-after", String(error.retryAfterSeconds));
+  }
   if (status >= 500) {
     runtime.logger.error("request failed", {
       method: req.method,

@@ -211,6 +211,9 @@ export class AgentSession {
 
   start(input: string, options: { images?: ImageAttachment[] } = {}): { runId: string; done: Promise<RunResult> } {
     if (this.activeRun) throw new Error("This session already has an active run.");
+    // Check before touching the transcript: a rejected start must leave no
+    // orphan user message behind.
+    this.options.beforeRun?.(this);
     const content = input.trim();
     const images = options.images?.length ? options.images : undefined;
     if (!content && !images) throw new Error("Message content cannot be empty.");
@@ -237,6 +240,7 @@ export class AgentSession {
       throw new Error("Only interrupted or failed sessions can be resumed.");
     }
     if (this.messageList.length === 0) throw new Error("This session has no messages to resume.");
+    this.options.beforeRun?.(this);
     const repaired = this.repairPendingToolCalls();
     if (repaired > 0) {
       this.emit({

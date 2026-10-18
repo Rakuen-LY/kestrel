@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline/promises";
-import { stdin, stdout } from "node:process";
+import { stderr, stdin, stdout } from "node:process";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { start } from "@kestrel/server";
@@ -13,6 +13,7 @@ import {
   type Runtime,
   type UserRecord,
 } from "@kestrel/server";
+import { isSessionGuardError } from "@kestrel/agent";
 import { SkillCatalog } from "@kestrel/plugin-skills";
 import type { ServerEventEnvelope } from "@kestrel/protocol";
 
@@ -538,5 +539,17 @@ async function chatLoop(runtime: Runtime, rl: ReturnType<typeof createInterface>
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main();
+  void main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isSessionGuardError(error)) {
+      stderr.write(`${color.red("Rejected:")} ${message}\n`);
+      process.exitCode = 2;
+      return;
+    }
+    stderr.write(`${color.red("Error:")} ${message}\n`);
+    if (process.env.KESTREL_DEBUG && error instanceof Error && error.stack) {
+      stderr.write(`${error.stack}\n`);
+    }
+    process.exitCode = 1;
+  });
 }
