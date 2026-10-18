@@ -750,6 +750,14 @@ async function dispatchPluginRoute(
     throw new HttpError(500, "plugin_route_failed", `Plugin route returned an invalid status ${status}.`);
   }
   for (const [key, value] of Object.entries(result?.headers ?? {})) res.setHeader(key, value);
+  if (typeof result?.raw === "string") {
+    res.writeHead(status, {
+      "content-type": result.headers?.["content-type"] ?? "text/plain; charset=utf-8",
+      "content-length": Buffer.byteLength(result.raw),
+    });
+    res.end(result.raw);
+    return;
+  }
   json(res, status, result?.body ?? { ok: true });
 }
 

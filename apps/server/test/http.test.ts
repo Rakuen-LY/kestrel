@@ -233,6 +233,14 @@ describe("plugin HTTP routes", () => {
           public: true,
           handler: () => ({ body: { pong: true } }),
         }));
+        context.effect(() => routes.route({
+          method: "GET",
+          path: "/api/plain",
+          handler: () => ({
+            raw: "one\\ntwo\\n",
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          }),
+        }));
       },
     };
   `;
@@ -258,6 +266,11 @@ describe("plugin HTTP routes", () => {
     const publicRoute = await fetch(`${harness.base}/api/public/ping`);
     expect(publicRoute.status).toBe(200);
     expect(await publicRoute.json()).toEqual({ pong: true });
+
+    const raw = await fetch(`${harness.base}/api/plain`, { headers: headers() });
+    expect(raw.status).toBe(200);
+    expect(raw.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await raw.text()).toBe("one\ntwo\n");
   });
 });
 

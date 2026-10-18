@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/plugin-metrics",
+  "version": "0.1.0",
+  "description": "Counters, gauges and histograms with Prometheus exposition.",
+  "entry": "dist/index.js",
+  "inject": ["sessions", "http.routes"],
+  "config": {
+    "enabled": true,
+    "prefix": "kestrel",
+    "maxSeriesPerMetric": 200
+  }
+}

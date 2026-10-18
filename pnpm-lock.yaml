@@ -164,6 +164,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/protocol
 
+  plugins/metrics:
+    dependencies:
+      '@kestrel/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@kestrel/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@kestrel/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+
   plugins/provider-openai:
     dependencies:
       '@kestrel/agent':

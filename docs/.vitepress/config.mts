@@ -65,6 +65,7 @@ export default defineConfig({
             { text: "Triggers & schedules", link: "/guide/triggers" },
             { text: "Process sandbox", link: "/guide/sandbox" },
             { text: "Audit log", link: "/guide/audit" },
+            { text: "Metrics", link: "/guide/metrics" },
             { text: "Checkpoints & rollback", link: "/guide/checkpoints" },
             { text: "Models & providers", link: "/guide/models" },
             { text: "Protocol & API", link: "/guide/protocol" },

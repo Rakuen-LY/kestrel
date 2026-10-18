@@ -138,6 +138,9 @@ never contains agent logic.
   workspace read-write at the same absolute path, run with the server UID on POSIX, and default to
   `--network none`. Killing the Docker CLI does not stop a container, so timeouts and aborts run
   `docker rm -f <name>` as well.
+- Metrics are memory-only and must stay low-cardinality; never label by session or user id. The
+  plugin exposes one shared `MetricRegistry` through the `metrics` service, and summaries are stored
+  as `__sum__`/`__count__` series folded back at snapshot time.
 - Audit logs hash tool arguments and never store output. Listener writes are queued; tests read
   through the route handler (which awaits the queue) instead of racing the file. The plugin needs
   the `storage` service, so keep it injected in `kestrel.plugin.json` and provide it in any test

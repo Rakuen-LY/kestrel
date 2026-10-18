@@ -91,8 +91,10 @@ See [Plugin UI](/guide/plugin-ui).
 
 - Plugin registry with signatures and provenance.
 - OIDC and SSO on top of the accounts model; per-tenant quotas and usage accounting.
-- Metrics (OpenTelemetry). ~~Audit log of tool executions~~ — JSONL trail and admin API ship in
-  `@kestrel/plugin-audit`; see [Audit log](/guide/audit).
+- ~~Metrics and an audit log of tool executions~~ — `@kestrel/plugin-metrics` serves Prometheus text
+  and a plugin-facing registry; `@kestrel/plugin-audit` keeps a JSONL trail. Still open: an
+  OpenTelemetry exporter and per-tenant quotas. See [Metrics](/guide/metrics) and
+  [Audit log](/guide/audit).
 - ~~Scheduled and event-triggered runs~~ — webhooks and UTC cron schedules ship in
   `@kestrel/plugin-triggers`; file watchers and durable delivery history are still open.
 

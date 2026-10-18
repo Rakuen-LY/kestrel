@@ -8,6 +8,11 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- `@kestrel/plugin-metrics`: in-process counters, gauges and summaries with
+  `GET /api/metrics` (JSON) and `GET /api/metrics/prometheus` (text) for administrators. A `metrics`
+  service lets other plugins publish their own series, including scrape-time collectors.
+- Plugin routes may return a literal `raw` body with custom headers, so text formats such as
+  Prometheus exposition do not need a JSON wrapper.
 - MCP resources and prompts: servers that support them now contribute
   `mcp__<server>__{list,read}_resource` and `mcp__<server>__{list,get}_prompt` tools, and the `mcp`
   service exposes `resources()`, `prompts()`, `readResource()` and `getPrompt()` for plugin-to-plugin

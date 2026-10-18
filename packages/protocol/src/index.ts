@@ -344,6 +344,12 @@ export interface PluginHttpRequest {
 export interface PluginHttpResult {
   status?: number;
   body?: unknown;
+  /**
+   * Literal response body, written without JSON encoding. Pair it with a
+   * `content-type` header; text formats such as Prometheus exposition cannot be
+   * expressed as JSON. Ignored when `body` is also set.
+   */
+  raw?: string;
   headers?: Record<string, string>;
 }
 
