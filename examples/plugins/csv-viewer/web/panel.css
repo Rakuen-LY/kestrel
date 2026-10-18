@@ -1,0 +1,32 @@
+.csv-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+
+.csv-table th,
+.csv-table td {
+  border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.2));
+  padding: 5px 8px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.csv-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated, transparent);
+  font-weight: 600;
+}
+
+.csv-table tbody tr:hover {
+  background: var(--bg-hover, rgba(127, 127, 127, 0.08));
+}
+
+.csv-note {
+  margin: 10px 2px 0;
+  color: var(--text-faint, #8891a4);
+  font-size: 11px;
+}

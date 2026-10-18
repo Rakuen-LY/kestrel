@@ -1,0 +1,10 @@
+{
+  "name": "@example/plugin-csv-viewer",
+  "version": "0.1.0",
+  "description": "Renders .csv files as a table in the console file viewer.",
+  "entry": "index.js",
+  "web": {
+    "entry": "panel.js",
+    "css": ["panel.css"]
+  }
+}

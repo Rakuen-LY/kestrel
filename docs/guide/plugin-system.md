@@ -238,6 +238,8 @@ No build step is required. This repository ships three examples:
   tools plugin.
 - `examples/plugins/web-metrics` — adds a browser bundle that renders in the console sidebar and
   settings drawer. See [Plugin UI](/guide/plugin-ui).
+- `examples/plugins/csv-viewer` — replaces the console's file preview for `.csv` and `.tsv` through
+  the `file.viewer` slot.
 
-Both are under a hundred lines and are loaded by `KESTREL_PLUGINS=plugins,examples/plugins`. They
-are the fastest way to see service injection in action.
+All four are under a hundred lines and are loaded by `KESTREL_PLUGINS=plugins,examples/plugins`.
+They are the fastest way to see service injection in action.

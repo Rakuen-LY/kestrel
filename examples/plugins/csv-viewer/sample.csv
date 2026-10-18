@@ -1,0 +1,4 @@
+name,language,stars,plugin
+Kestrel,TypeScript,1,yes
+Cordis,TypeScript,2,yes
+"Smith, Jane",Rust,3,no

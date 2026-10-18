@@ -1,8 +1,9 @@
 # Plugin UI
 
 "Everything is a plugin" should include the interface. A plugin can ship a small ESM bundle that
-adds a sidebar summary, a settings section, a session header, content after a message or an action
-under the composer, without forking the console or depending on its React internals.
+adds a sidebar summary, a settings section, a session header, content after a message, an action
+under the composer or a preview for a workspace file, without forking the console or depending on
+its React internals.
 
 Bundles run in a sandboxed iframe, not in the console's origin. This page covers the contract, the
 slots and the trust boundary. The worked example is
@@ -86,6 +87,17 @@ interface ConsoleContext {
     toolCalls?: ToolCall[];
     images?: Array<{ mimeType: string; name?: string }>;
   };
+  file?: {                                            // file.viewer only
+    path: string;
+    name: string;
+    size: number;
+    mimeType: string;
+    encoding: "utf8" | "base64";
+    content: string;
+    truncated: boolean;
+    binary: boolean;
+    lines?: number;
+  };
   composer?: { submit(text: string): void };         // composer.actions only
   request<T>(path: string, init?: RequestInit): Promise<T>;
 }
@@ -93,11 +105,12 @@ interface ConsoleContext {
 interface ConsoleExtension {
   id: string;                                        // unique within the plugin
   slot: "sidebar.footer" | "settings.section" | "session.header"
-      | "message.after" | "composer.actions";
+      | "message.after" | "composer.actions" | "file.viewer";
   order?: number;                                    // lower renders first, default 100
-  match?: {                                          // message.after filtering
-    roles?: Array<"user" | "assistant">;
-    toolNames?: string[];
+  match?: {                                          // message.after / file.viewer filtering
+    roles?: Array<"user" | "assistant">;             // message.after only
+    toolNames?: string[];                            // message.after only
+    extensions?: string[];                           // file.viewer only, without the dot
   };
   mount(element: HTMLElement, context: ConsoleContext): void | (() => void);
 }
@@ -139,6 +152,11 @@ The console copies its CSS custom properties (`--bg`, `--text`, `--accent`, ...)
 root and refreshes them when the system colour scheme changes. Use `var(--text-muted)` rather than
 hard-coded colours so a bundle works in both themes.
 
+`context.file` is a read-only projection of the file the user opened. Text is clipped to 512,000
+characters before it crosses the boundary, and `truncated` flips when either the server read limit
+or that clip was hit. Binary files arrive base64-encoded; prefer `request` for large payloads
+instead of pushing them through `postMessage`.
+
 `context.message` omits base64 image bytes; call `request` if a contribution needs the actual
 pixels. Tool arguments and results are included through `toolCalls`, so a message extension can
 recognise its own output. `context.payload` carries the raw slot input for new slots and is the
@@ -165,6 +183,7 @@ bundles can still register `composer.actions` to show information, but cannot st
 | `settings.section` | Inside the settings drawer | No | — |
 | `message.after` | Under every matching user or assistant message | Yes | `message` |
 | `composer.actions` | Under the composer box | Yes | `composer` |
+| `file.viewer` | Instead of the built-in file preview | Yes | `file` |
 
 `message.after` mounts one iframe per matching message. Narrow it with `match` so the console does
 not create an island for every turn:
@@ -184,6 +203,34 @@ Extensions remount when the active session changes or when a slot payload change
 `session.header` can read `context.sessionId` and refresh. Message payloads are stable once a turn
 is persisted; streaming messages do not mount extensions until the turn completes. Slots are
 intentionally few: a stable surface is easier to keep compatible than a component tree.
+
+### Replacing a file preview
+
+The console ships a source/line-number preview and an image viewer, plus a read-only workspace
+browser backed by `GET /api/sessions/:id/files` and `/file`. A `file.viewer` contribution takes over
+the preview pane for the file types it claims, and the console offers a **Source** tab beside it so
+the raw text is always one click away. Claim extensions precisely — a contribution without `match`
+would replace every preview:
+
+```js
+api.register({
+  id: "csv-table",
+  slot: "file.viewer",
+  match: { extensions: ["csv", "tsv"] },
+  mount(element, context) {
+    const { path, content, encoding, binary, truncated } = context.file;
+    if (binary || encoding !== "utf8") {
+      element.textContent = "Not a text table.";
+      return;
+    }
+    // Parse and render `content`; `path` ends in .csv or .tsv here.
+  },
+});
+```
+
+`examples/plugins/csv-viewer` is a complete version with quoted-cell parsing. The file API is
+session-scoped and honours tenant visibility: a file outside the session workspace, including a
+symlink that escapes it, answers `400`, `403` or `404`, never its contents.
 
 ## Lifecycle and failures
 

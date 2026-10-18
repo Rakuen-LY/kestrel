@@ -7,9 +7,10 @@ import { LoginScreen } from "./components/LoginScreen.js";
 import { PluginSlot } from "./components/PluginSlot.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { CheckpointsPanel } from "./components/CheckpointsPanel.js";
+import { FileViewer } from "./components/FileViewer.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { ToolCallCard } from "./components/ToolCall.js";
-import { BoltIcon, HistoryIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
+import { BoltIcon, FilesIcon, HistoryIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
 import { usePluginExtensions } from "./extensions.js";
 import { useKestrel } from "./state.js";
 import { readToken, writeEndpoint, writeToken } from "./api.js";
@@ -71,6 +72,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [checkpointsOpen, setCheckpointsOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(readToken()));
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -186,6 +188,16 @@ export default function App() {
                 </select>
               </label>
             )}
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setFilesOpen(true)}
+              aria-label="Workspace files"
+              title="Workspace files"
+              disabled={!state.activeId}
+            >
+              <FilesIcon size={17} />
+            </button>
             <button
               type="button"
               className="icon-button"
@@ -311,6 +323,14 @@ export default function App() {
           }
         />
       </main>
+
+      <FileViewer
+        open={filesOpen}
+        api={api}
+        sessionId={state.activeId}
+        extensions={extensions}
+        onClose={() => setFilesOpen(false)}
+      />
 
       <CheckpointsPanel
         open={checkpointsOpen}

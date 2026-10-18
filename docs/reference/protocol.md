@@ -24,6 +24,8 @@ mobile client. The server, console and CLI all use these types.
 | `POST` | `/api/sessions/:id/rewind` | `200 { messageId, removed, messages, restored, safety, warning? }` | Drops a user message and its successors, optionally restoring files. `404 message_not_found`, `400 invalid_rewind_target`, `409 session_busy`. |
 | `GET` | `/api/sessions/:id/events` | `200 text/event-stream` | Session-scoped stream. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | `200 { resolved: true }` | Body `{ "approved": boolean, "note"?: string }`. |
+| `GET` | `/api/sessions/:id/files` | `200 WorkspaceListing` | `?path=` selects a directory (default `.`). Read-only. |
+| `GET` | `/api/sessions/:id/file` | `200 WorkspaceFile` | `?path=` is required. Text is UTF-8, images and binaries base64. |
 | `GET` | `/api/sessions/:id/checkpoints` | `200 CheckpointListResponse` | `enabled`, optional `reason`, `checkpoints[]`. |
 | `POST` | `/api/sessions/:id/checkpoints` | `201 { checkpoint }` | Body `{ "label"?: string }`. |
 | `POST` | `/api/sessions/:id/checkpoints/:checkpointId/restore` | `200 { restored, safety }` | `409 session_busy` while a run is active. |
@@ -31,6 +33,11 @@ mobile client. The server, console and CLI all use these types.
 
 Unknown routes return `404`. Wrong methods on a known route return `405` with
 `method_not_allowed`.
+
+Workspace file routes are strictly read-only. Absolute paths and paths that escape the session
+workspace answer `400 invalid_path` or `403 outside_workspace`; symlinks are resolved before the
+containment check, so a link pointing outside is refused too. A session in another tenant answers
+`404`, like every other session route.
 
 ## Requests
 
@@ -275,6 +282,33 @@ interface SessionSummary {
 interface SessionDetail extends SessionSummary {
   messages: ChatMessage[];
   systemPrompt?: string;
+}
+
+interface WorkspaceEntry {
+  name: string;
+  path: string;                 // POSIX path relative to the session workspace
+  type: "file" | "directory";
+  size?: number;
+  modifiedAt?: string;
+}
+
+interface WorkspaceListing {
+  path: string;
+  entries: WorkspaceEntry[];    // directories first, then files, both by name
+  truncated?: boolean;          // 500-entry cap
+}
+
+interface WorkspaceFile {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: string;
+  mimeType: string;
+  encoding: "utf8" | "base64";
+  content: string;
+  truncated: boolean;           // hit the read limit (2 MB by default)
+  binary: boolean;
+  lines?: number;               // only for UTF-8
 }
 ```
 

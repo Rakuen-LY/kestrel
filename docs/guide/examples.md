@@ -105,9 +105,33 @@ This is the cooperation model in practice:
 - The plugin is disposable: when the host unloads it, the tool disappears and the model stops seeing
   it in the next request.
 
+## `csv-viewer` — a file preview
+
+`examples/plugins/csv-viewer` is the smallest useful `file.viewer` contribution: one extension,
+ninety lines of plain ESM and a stylesheet. It claims `.csv` and `.tsv` files, parses quoted cells
+with embedded delimiters and newlines, and renders a real `<table>` inside the sandbox.
+
+```js
+api.register({
+  id: "csv-table",
+  slot: "file.viewer",
+  match: { extensions: ["csv", "tsv"] },
+  mount(element, context) {
+    const file = context.file;
+    if (file.binary || file.encoding !== "utf8") return;
+    const rows = parseTable(file.content, file.path.endsWith(".tsv") ? "\t" : ",");
+    // render rows, cap the table at 1000 rows
+  },
+});
+```
+
+The console keeps its **Source** tab, so a user can always fall back to raw text. Nothing about the
+file browser is special-cased for CSV: any plugin can claim any extension, and files nothing claims
+keep the built-in preview. See [Plugin UI](/guide/plugin-ui#replacing-a-file-preview).
+
 ## `web-metrics` — a browser contribution
 
-`examples/plugins/web-metrics` is the only example that touches the console. Its manifest declares a
+`examples/plugins/web-metrics` shows the full slot surface. Its manifest declares a
 bundle:
 
 ```json

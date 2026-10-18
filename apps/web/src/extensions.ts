@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BootstrapResponse, ChatMessage, PluginInfo, ToolCall } from "@kestrel/protocol";
+import type { BootstrapResponse, ChatMessage, PluginInfo, ToolCall, WorkspaceFile } from "@kestrel/protocol";
 import type { KestrelApi } from "./api.js";
 
 /**
@@ -12,7 +12,8 @@ export type SlotName =
   | "settings.section"
   | "session.header"
   | "message.after"
-  | "composer.actions";
+  | "composer.actions"
+  | "file.viewer";
 
 /** Declarative narrowing for slots that render once per item. */
 export interface SlotMatch {
@@ -20,6 +21,8 @@ export interface SlotMatch {
   roles?: Array<"user" | "assistant">;
   /** Render only when the message issued one of these tool calls. */
   toolNames?: string[];
+  /** File extensions (without the dot) a `file.viewer` accepts; empty means any file. */
+  extensions?: string[];
 }
 
 /** Message projection sent to a sandbox: base64 image data stays in the console. */
@@ -34,14 +37,31 @@ export interface RenderableMessage {
   images?: Array<{ mimeType: string; name?: string }>;
 }
 
+/** A file projection for `file.viewer`; oversized text is clipped before it reaches the sandbox. */
+export interface RenderableFile {
+  path: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  encoding: "utf8" | "base64";
+  content: string;
+  truncated: boolean;
+  binary: boolean;
+  lines?: number;
+}
+
 export interface ConsoleContext {
   plugin: { id: string; name: string; version: string };
   /** Absolute API origin, useful for links and streams. */
   endpoint: string;
   /** Active session, when the slot is session-scoped. */
   sessionId?: string;
-  /** Slot-specific input; `message` for message.after, `composer` for composer.actions. */
+  /** Slot-specific input; `message`, `file` or `composer` depending on the slot. */
   payload: Record<string, unknown>;
+  /** Current message for `message.after`. */
+  message?: RenderableMessage;
+  /** Current file for `file.viewer`. */
+  file?: RenderableFile;
   /** Authenticated JSON request against the Kestrel API. */
   request<T = unknown>(path: string, init?: RequestInit): Promise<T>;
 }
@@ -101,7 +121,37 @@ const SLOTS = new Set<SlotName>([
   "session.header",
   "message.after",
   "composer.actions",
+  "file.viewer",
 ]);
+
+/** Plugins receive at most this much file text; larger previews stay in the console. */
+const MAX_PLUGIN_FILE_CHARS = 512_000;
+
+export function filePayload(file: WorkspaceFile): RenderableFile {
+  const clipped = file.content.length > MAX_PLUGIN_FILE_CHARS;
+  return {
+    path: file.path,
+    name: file.name,
+    size: file.size,
+    mimeType: file.mimeType,
+    encoding: file.encoding,
+    content: clipped ? file.content.slice(0, MAX_PLUGIN_FILE_CHARS) : file.content,
+    truncated: file.truncated || clipped,
+    binary: file.binary,
+    ...(file.lines !== undefined ? { lines: file.lines } : {}),
+  };
+}
+
+export function fileExtension(path: string): string {
+  const name = path.split("/").pop() ?? path;
+  const index = name.lastIndexOf(".");
+  return index > 0 ? name.slice(index + 1).toLowerCase() : "";
+}
+
+export function matchesFile(match: SlotMatch | undefined, file: Pick<WorkspaceFile, "path">): boolean {
+  if (!match?.extensions?.length) return true;
+  return match.extensions.includes(fileExtension(file.path));
+}
 
 export function messagePayload(message: ChatMessage): RenderableMessage {
   return {
@@ -272,17 +322,23 @@ function normalizeContributions(value: unknown): ExtensionContribution[] {
 
 function normalizeMatch(value: unknown): SlotMatch | undefined {
   if (!value || typeof value !== "object") return undefined;
-  const record = value as { roles?: unknown; toolNames?: unknown };
+  const record = value as { roles?: unknown; toolNames?: unknown; extensions?: unknown };
   const roles = Array.isArray(record.roles)
     ? record.roles.filter((role): role is "user" | "assistant" => role === "user" || role === "assistant")
     : [];
   const toolNames = Array.isArray(record.toolNames)
     ? record.toolNames.filter((name): name is string => typeof name === "string" && name.length > 0)
     : [];
-  if (roles.length === 0 && toolNames.length === 0) return undefined;
+  const extensions = Array.isArray(record.extensions)
+    ? record.extensions
+        .filter((extension): extension is string => typeof extension === "string" && extension.length > 0)
+        .map((extension) => extension.replace(/^\./, "").toLowerCase())
+    : [];
+  if (roles.length === 0 && toolNames.length === 0 && extensions.length === 0) return undefined;
   return {
     ...(roles.length ? { roles } : {}),
     ...(toolNames.length ? { toolNames } : {}),
+    ...(extensions.length ? { extensions } : {}),
   };
 }
 

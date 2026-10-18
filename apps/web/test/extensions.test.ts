@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage } from "@kestrel/protocol";
-import { matchesMessage, messagePayload } from "../src/extensions.js";
+import type { ChatMessage, WorkspaceFile } from "@kestrel/protocol";
+import { fileExtension, filePayload, matchesFile, matchesMessage, messagePayload } from "../src/extensions.js";
 
 function message(extra: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -65,5 +65,47 @@ describe("message payload", () => {
       model: "gpt-test",
       toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "a" } }],
     });
+  });
+});
+
+describe("file viewer matching", () => {
+  const file = (path: string): Pick<WorkspaceFile, "path"> => ({ path });
+
+  it("matches every file when no extensions are declared", () => {
+    expect(matchesFile(undefined, file("README.md"))).toBe(true);
+    expect(matchesFile({}, file("README.md"))).toBe(true);
+  });
+
+  it("matches declared extensions case-insensitively", () => {
+    expect(matchesFile({ extensions: ["csv"] }, file("data/sales.CSV"))).toBe(true);
+    expect(matchesFile({ extensions: ["csv"] }, file("data/sales.json"))).toBe(false);
+    expect(fileExtension("archive.tar.gz")).toBe("gz");
+    expect(fileExtension("Makefile")).toBe("");
+    expect(fileExtension(".env")).toBe("");
+  });
+});
+
+describe("file payload", () => {
+  const base: WorkspaceFile = {
+    path: "src/app.ts",
+    name: "app.ts",
+    size: 12,
+    modifiedAt: "2026-01-01T00:00:00.000Z",
+    mimeType: "text/typescript",
+    encoding: "utf8",
+    content: "const a = 1;",
+    truncated: false,
+    binary: false,
+    lines: 1,
+  };
+
+  it("passes file metadata and content through", () => {
+    expect(filePayload(base)).toMatchObject({ path: "src/app.ts", content: "const a = 1;", lines: 1 });
+  });
+
+  it("clips very large previews before the sandbox sees them", () => {
+    const payload = filePayload({ ...base, content: "x".repeat(600_000) });
+    expect(payload.content).toHaveLength(512_000);
+    expect(payload.truncated).toBe(true);
   });
 });

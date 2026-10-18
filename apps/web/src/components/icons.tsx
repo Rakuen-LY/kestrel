@@ -104,6 +104,12 @@ export const ShieldIcon = (props: IconProps) => (
   </Icon>
 );
 
+export const FilesIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+  </Icon>
+);
+
 export const PluginIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M10 3v4M14 3v4M7 7h10a2 2 0 0 1 2 2v4a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5V9a2 2 0 0 1 2-2z" />

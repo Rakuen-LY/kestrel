@@ -26,9 +26,12 @@ import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
 import { CheckpointError } from "./checkpoints.js";
 import type { PluginRouteMatch } from "./plugin-http.js";
+import { WorkspaceFiles, WorkspaceFilesError } from "./workspace-files.js";
 import type { Runtime } from "./runtime.js";
 
 const VERSION = "0.1.0";
+
+const workspaceFiles = new WorkspaceFiles();
 
 const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const MAX_IMAGES = 6;
@@ -288,6 +291,20 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
 
   if (url.pathname === "/api/events" && method === "GET") {
     streamEvents(runtime, req, res, url, principal);
+    return;
+  }
+
+  const sessionFilesMatch = /^\/api\/sessions\/([^/]+)\/(files|file)$/.exec(url.pathname);
+  if (sessionFilesMatch) {
+    if (method !== "GET") throw new HttpError(405, "method_not_allowed", "Workspace files are read-only.");
+    const session = visibleSession(runtime, principal, decodeURIComponent(sessionFilesMatch[1]));
+    const path = url.searchParams.get("path") ?? ".";
+    const payload =
+      sessionFilesMatch[2] === "files"
+        ? await workspaceFiles.list(session.workspace, path)
+        : await workspaceFiles.read(session.workspace, path);
+    res.setHeader("cache-control", "no-store");
+    json(res, 200, payload);
     return;
   }
 
@@ -704,6 +721,7 @@ async function start(data) {
     sessionId: data.sessionId,
     payload: data.payload ?? {},
     message: data.payload?.message,
+    file: data.payload?.file,
     request,
     ...(data.slot === "composer.actions" && data.composer === true
       ? {
@@ -1099,7 +1117,7 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
               : error.code === "session_busy"
                 ? 409
                 : 400
-            : error instanceof CheckpointError
+            : error instanceof CheckpointError || error instanceof WorkspaceFilesError
               ? error.status
               : 500;
   const code =
@@ -1111,7 +1129,7 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
           ? error.code
           : isRewindError(error)
             ? error.code
-            : error instanceof CheckpointError
+            : error instanceof CheckpointError || error instanceof WorkspaceFilesError
               ? error.code
               : "internal_error";
   const message =
@@ -1119,7 +1137,7 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
     error instanceof SessionNotFoundError ||
     isSessionGuardError(error) ||
     isRewindError(error) ||
-    error instanceof CheckpointError
+    error instanceof CheckpointError || error instanceof WorkspaceFilesError
       ? error.message
       : "The server hit an unexpected error. Check the server logs for details.";
   if (isSessionGuardError(error) && error.retryAfterSeconds) {

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatMessage } from "@kestrel/protocol";
+import type { ChatMessage, WorkspaceFile } from "@kestrel/protocol";
 import type { KestrelApi } from "../api.js";
 import {
+  filePayload,
+  matchesFile,
   matchesMessage,
   messagePayload,
   themeVariables,
@@ -16,6 +18,7 @@ export function PluginSlot({
   api,
   sessionId,
   message,
+  file,
   payload,
   onComposerSubmit,
 }: {
@@ -25,20 +28,25 @@ export function PluginSlot({
   sessionId?: string;
   /** Current message for `message.after`; extensions are filtered by `match`. */
   message?: ChatMessage;
+  /** Current file for `file.viewer`; extensions are filtered by `match.extensions`. */
+  file?: WorkspaceFile;
   /** Slot-specific data; remounts the sandbox when its JSON value changes. */
   payload?: Record<string, unknown>;
   /** Called when a `composer.actions` bundle asks to send a prompt. */
   onComposerSubmit?: (text: string) => void;
 }) {
   if (slot === "message.after" && !message) return null;
+  if (slot === "file.viewer" && !file) return null;
   const matching = extensions
     .filter((extension) => extension.slot === slot)
     .filter((extension) => slot !== "message.after" || matchesMessage(extension.match, message!))
+    .filter((extension) => slot !== "file.viewer" || matchesFile(extension.match, file!))
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
 
   const data = {
     ...payload,
     ...(message ? { message: messagePayload(message) } : {}),
+    ...(file ? { file: filePayload(file) } : {}),
   };
   const dataKey = JSON.stringify(data);
   if (matching.length === 0) return null;
@@ -47,7 +55,7 @@ export function PluginSlot({
     <>
       {matching.map((extension) => (
         <PluginFrame
-          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}:${message?.id ?? ""}`}
+          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}:${message?.id ?? ""}:${file?.path ?? ""}`}
           extension={extension}
           api={api}
           sessionId={sessionId}

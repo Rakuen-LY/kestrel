@@ -193,6 +193,8 @@ never contains agent logic.
   `composer.submit` may propose a prompt, and the console still performs the send. Registration
   `match` metadata is validated during discovery so unmatched messages never create iframes.
   `composer.submit` requires the `web.capabilities` grant and is absent from `context` otherwise.
+`file.viewer` payloads are the same `WorkspaceFile` the built-in viewer fetched, clipped to 512k
+characters before postMessage; plugins that need more call the file API themselves.
 - Plugin UI API calls are default-deny beyond read-only `GET /api/**`; `web.api` grants are checked
   in the parent proxy after URL normalisation, so never forward a raw plugin path without calling
   `apiAllowed` first. `api: []` means no API access at all.

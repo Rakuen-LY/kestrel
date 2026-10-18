@@ -12,6 +12,8 @@ import type {
   SessionDetail,
   SessionEvent,
   SessionSummary,
+  WorkspaceFile,
+  WorkspaceListing,
 } from "@kestrel/protocol";
 
 const TOKEN_KEY = "kestrel.token";
@@ -171,6 +173,16 @@ export class KestrelApi {
 
   plugins(): Promise<{ plugins: PluginInfo[] }> {
     return this.request("/api/plugins");
+  }
+
+  listFiles(sessionId: string, path = "."): Promise<WorkspaceListing> {
+    const query = new URLSearchParams({ path });
+    return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/files?${query.toString()}`);
+  }
+
+  readFile(sessionId: string, path: string): Promise<WorkspaceFile> {
+    const query = new URLSearchParams({ path });
+    return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/file?${query.toString()}`);
   }
 
   listSessions(): Promise<{ sessions: SessionSummary[] }> {

@@ -8,6 +8,15 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Workspace file browser in the console (`apps/web/src/components/FileViewer.tsx`) and the read-only
+  `GET /api/sessions/:id/files` and `/file` routes. Listings are directories-first and hide ignored
+  paths; text arrives UTF-8 with line counts and a truncation flag, images and binaries base64.
+  Paths are resolved and contained per session, so traversal and cross-tenant ids answer `400`,
+  `403` or `404` instead of leaking contents.
+- Plugin UI slot `file.viewer`. Contributions declare `match.extensions` and receive a bounded
+  `context.file` projection; the console keeps its built-in preview on a **Source** tab, so a
+  plugin can add a table or diagram view without hiding the raw file. The new
+  `examples/plugins/csv-viewer` demonstrates quoted-cell parsing and table rendering.
 - Plugin UI slots `message.after` and `composer.actions`. Message contributions declare `match`
   (`roles`, `toolNames`), receive a projection without image bytes, and mount once per matching
   message; composer contributions receive `context.composer.submit(text)` and can propose a turn

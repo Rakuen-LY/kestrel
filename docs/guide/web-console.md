@@ -88,6 +88,16 @@ console shows a modal with the tool name and arguments. Approving or denying cal
 `POST /api/sessions/:id/approvals/:approvalId`; the decision is final and the run resumes or records
 a denial. The server's approval timeout also resolves the prompt as denied.
 
+## Workspace files
+
+The header's folder button opens a read-only browser for the active session's workspace. It lists
+one directory at a time (directories first), previews text with line numbers, renders images inline
+and flags binary files. The viewer never writes: edits belong to the agent's tools, which keep
+their own checkpoints.
+
+Plugins can take over the preview for the extensions they claim through the `file.viewer` slot; a
+**Source** tab keeps the raw text available. See [Plugin UI](/guide/plugin-ui#replacing-a-file-preview).
+
 ## Settings
 
 - **Server** — read-only endpoint, version, protocol and live connection state; token entry.

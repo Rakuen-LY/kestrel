@@ -135,6 +135,37 @@ export interface CheckpointInfo {
   changes: { added: number; modified: number; deleted: number };
 }
 
+/** One entry in a client-facing workspace listing. */
+export interface WorkspaceEntry {
+  name: string;
+  /** POSIX-style path relative to the session workspace. */
+  path: string;
+  type: "file" | "directory";
+  size?: number;
+  modifiedAt?: string;
+}
+
+export interface WorkspaceListing {
+  path: string;
+  entries: WorkspaceEntry[];
+  /** True when the server stopped listing because it hit its entry limit. */
+  truncated: boolean;
+}
+
+/** File contents for preview. Text is UTF-8; images and binary files are base64. */
+export interface WorkspaceFile {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: string;
+  mimeType: string;
+  encoding: "utf8" | "base64";
+  content: string;
+  truncated: boolean;
+  binary: boolean;
+  lines?: number;
+}
+
 export interface CheckpointListResponse {
   enabled: boolean;
   /** Why checkpoints are unavailable, when they are. */
