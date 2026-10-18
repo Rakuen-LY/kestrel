@@ -6,6 +6,8 @@ All notable changes to Kestrel are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
 ### Added
 
 - Single-sourced versioning. `KESTREL_VERSION` in `packages/protocol/src/version.ts` is the only
@@ -21,6 +23,11 @@ All notable changes to Kestrel are documented here. The format follows
   (`cache-control: no-store`) and `error.code` for unknown routes, bad methods, malformed or
   oversized bodies, unknown sessions, traversal attempts, missing assets and disabled account
   routes. Server tests now share one harness (`apps/server/test/support/server.ts`).
+- `pnpm release:prepare <version>` cuts a release in one command: it rolls `## [Unreleased]` into a
+  dated section, bumps every manifest and `KESTREL_VERSION` without reformatting them, checks that
+  the workflow will be able to extract the notes, commits and creates the annotated tag. It refuses
+  a dirty tree, a backwards version, an existing tag and an empty unreleased section. `git push` is
+  intentionally the only remaining step, because it is the only one that needs a credential.
 - Tag-driven release workflow. A `v*` tag must equal the package version, the full verification
   suite runs again, and only then does it push a signed `linux/amd64`/`linux/arm64` image with
   provenance and an SBOM, publish a GitHub release built from the changelog, and attach a
