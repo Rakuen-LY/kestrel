@@ -26,14 +26,19 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Docker, Compose, Kubernetes, systemd, launchd, Windows Task | Done |
 | Documentation site | You are reading it |
 | Test suite | Unit tests plus end-to-end HTTP/SSE runs against a scripted model |
+| Releases | Tag-driven multi-arch image, signed digest, checksummed docs — see [Releasing](/guide/releasing) |
 
 ## Next
 
 ### 1. A stronger test and release pipeline
 
-- Snapshot tests for every HTTP error path.
+- ~~Snapshot tests for every HTTP error path.~~ `apps/server/test/http-errors.test.ts` pins the
+  status, headers and `error.code` of the 404/405/400/413/401/409 responses clients branch on.
 - Browser tests for the console against a scripted backend.
-- Automated release workflow with signed tags and changelog generation.
+- ~~Automated release workflow with signed tags and changelog generation.~~ `release.yml` verifies
+  the tag against the version, rebuilds from scratch, pushes a signed multi-arch image
+  (`amd64`, `arm64`) with provenance and an SBOM, and derives release notes from `CHANGELOG.md`.
+  Git tag signing is left to the maintainer's key: the repository cannot hold one.
 
 ### 2. Plugin UI hardening
 

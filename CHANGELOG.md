@@ -8,6 +8,21 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Single-sourced versioning. `KESTREL_VERSION` in `packages/protocol/src/version.ts` is the only
+  literal; `pnpm version:set <version>` rewrites every workspace manifest and
+  `pnpm version:check` (also a unit test) fails on drift. `/api/health`, `/api/bootstrap`, the CLI
+  and `kestrel-server --version` all report it, so an image cannot disagree with its tag.
+- `pnpm smoke` (`scripts/smoke.mjs`) boots the compiled server in a throwaway workspace and asserts
+  health, auth, bootstrap, console bundle, plugin discovery and the SSE `ready` frame. CI and the
+  release workflow run it, so a bundle that compiles but cannot start never ships.
+- HTTP error contract suite (`apps/server/test/http-errors.test.ts`): 17 cases pin status, headers
+  (`cache-control: no-store`) and `error.code` for unknown routes, bad methods, malformed or
+  oversized bodies, unknown sessions, traversal attempts, missing assets and disabled account
+  routes. Server tests now share one harness (`apps/server/test/support/server.ts`).
+- Tag-driven release workflow. A `v*` tag must equal the package version, the full verification
+  suite runs again, and only then does it push a signed `linux/amd64`/`linux/arm64` image with
+  provenance and an SBOM, publish a GitHub release built from the changelog, and attach a
+  checksummed documentation bundle. `scripts/changelog.mjs` refuses empty or draft sections.
 - Plugin asset hot reload for development. `plugins.hotReload` (env `KESTREL_HOT_RELOAD`) makes the
   server fingerprint every active plugin's `web/` tree and stream changes over
   `GET /api/plugins/events`; `PluginWeb.revision` and the console then cache-bust entry and
@@ -129,6 +144,10 @@ All notable changes to Kestrel are documented here. The format follows
   leaves history untouched.
 
 ### Changed
+
+- CI grows three gates: `pnpm version:check` before the build, `pnpm smoke` after it, and a
+  container job that runs the built image, compares its reported version with the repository, and
+  asserts it does not run as root. Documentation is uploaded as a build artifact.
 
 - Browser pages are session-scoped: each session gets its own browser process, cookies and refs,
   created lazily and evicted after `idleMs` (15 minutes by default). Other plugins call

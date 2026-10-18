@@ -1,24 +1,16 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { AddressInfo } from "node:net";
-import { request as httpRequest, type IncomingMessage, type Server } from "node:http";
+import { request as httpRequest, type IncomingMessage } from "node:http";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SessionGuardError, type Tool } from "@kestrel/agent";
-import { ScriptedModel, type ScriptedTurn } from "@kestrel/testkit";
-import { createRuntime, type Runtime } from "../src/runtime.js";
-import { createHttpServer } from "../src/http.js";
-
-interface Harness {
-  base: string;
-  runtime: Runtime;
-  token: string;
-  close(): Promise<void>;
-}
+import {
+  boot as bootHarness,
+  createSession,
+  headers,
+  waitForIdle,
+  type Harness,
+} from "./support/server.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 const clients = new Set<SseClient>();
-const TOKEN = "test-token";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF+4wAAAABJRU5ErkJggg==";
 
 beforeAll(() => {
@@ -31,93 +23,10 @@ afterEach(async () => {
   while (cleanups.length) await cleanups.pop()?.();
 });
 
-async function boot(
-  options: {
-    turns?: ScriptedTurn[];
-    tools?: Tool[];
-    token?: string;
-    pluginSource?: string;
-    pluginInject?: string[];
-  } = {},
-): Promise<Harness> {
-  const root = await mkdtemp(join(tmpdir(), "kestrel-http-"));
-  const workspace = join(root, "workspace");
-  const plugins = join(root, "plugins");
-  const data = join(root, "data");
-  await mkdir(workspace, { recursive: true });
-  await mkdir(plugins, { recursive: true });
-  if (options.pluginSource) {
-    const directory = join(plugins, "test-layer");
-    await mkdir(directory, { recursive: true });
-    await writeFile(
-      join(directory, "kestrel.plugin.json"),
-      JSON.stringify({
-        name: "@test/plugin-layer",
-        version: "0.0.0",
-        entry: "index.js",
-        inject: options.pluginInject ?? ["prompts"],
-      }),
-    );
-    await writeFile(join(directory, "index.js"), options.pluginSource);
-  }
-
-  const token = options.token === undefined ? TOKEN : options.token;
-  const configPath = join(root, "kestrel.config.json");
-  await writeFile(
-    configPath,
-    JSON.stringify({
-      server: { host: "127.0.0.1", port: 0, token },
-      model: { default: "scripted", maxSteps: 6 },
-      agent: { workspace },
-      plugins: { directories: [plugins] },
-      storage: { directory: data },
-      approvals: { timeoutMs: 5_000 },
-    }),
-  );
-
-  const runtime = await createRuntime({ configPath });
-  runtime.models.register(new ScriptedModel(options.turns ?? [{ content: "hello" }]), { setDefault: true });
-  for (const tool of options.tools ?? []) runtime.tools.register(tool);
-
-  const server: Server = createHttpServer(runtime);
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address() as AddressInfo;
-  const base = `http://127.0.0.1:${address.port}`;
-
-  const close = async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await runtime.shutdown();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
-  };
-  cleanups.push(close);
-  return { base, runtime, token, close };
-}
-
-function headers(token = TOKEN): Record<string, string> {
-  return { authorization: `Bearer ${token}`, "content-type": "application/json" };
-}
-
-async function createSession(harness: Harness, body: Record<string, unknown> = {}): Promise<string> {
-  const response = await fetch(`${harness.base}/api/sessions`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(body),
-  });
-  expect(response.status).toBe(201);
-  const payload = (await response.json()) as { session: { id: string } };
-  return payload.session.id;
-}
-
-async function waitForIdle(harness: Harness, id: string, timeoutMs = 5_000): Promise<Record<string, unknown>> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const response = await fetch(`${harness.base}/api/sessions/${id}`, { headers: headers() });
-    const payload = (await response.json()) as { session: Record<string, unknown> };
-    if (payload.session.status !== "running") return payload.session;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error("session did not become idle");
+async function boot(options: Parameters<typeof bootHarness>[0] = {}): Promise<Harness> {
+  const harness = await bootHarness(options);
+  cleanups.push(harness.close);
+  return harness;
 }
 
 interface Envelope<T = Record<string, unknown>> {

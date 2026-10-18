@@ -7,6 +7,7 @@
  */
 
 export const PROTOCOL_VERSION = "1.0";
+export { KESTREL_VERSION } from "./version.js";
 
 export type JsonSchema = {
   type?: "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";

@@ -9,10 +9,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  KESTREL_LOG_LEVEL: silent
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         node: [22, 24]
     steps:
@@ -28,23 +33,77 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
+      # Boots the compiled server against a scratch workspace: health, auth,
+      # bootstrap, console assets, plugin discovery and the SSE handshake.
+      - run: pnpm smoke
       - run: pnpm docs:build
+
+      - name: Upload documentation
+        if: matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/.vitepress/dist
+          retention-days: 14
 
   docker:
     runs-on: ubuntu-latest
     needs: verify
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+
       - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
+          load: true
           tags: kestrel:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Start the image
+        run: |
+          docker run --detach --name kestrel-ci \
+            --publish 7331:7331 \
+            --env KESTREL_TOKEN=ci-token \
+            --env KESTREL_LOG_LEVEL=warn \
+            kestrel:ci
+
+      - name: Wait for a healthy container
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:7331/api/health --output health.json; then
+              break
+            fi
+            sleep 2
+          done
+          test -s health.json
+          node -e '
+            const health = require("./health.json");
+            const version = require("./package.json").version;
+            if (health.status !== "ok") throw new Error(`unhealthy: ${JSON.stringify(health)}`);
+            if (health.version !== version) throw new Error(`image reports ${health.version}, expected ${version}`);
+            if (!(health.plugins > 0)) throw new Error("the image loaded no plugins");
+            console.log(`container healthy: ${health.version}, ${health.plugins} plugins`);
+          '
+
+      - name: Assert the container is unprivileged
+        run: |
+          user_id=$(docker run --rm kestrel:ci id -u)
+          test "$user_id" != "0" || { echo "image runs as root"; exit 1; }
+
+      - name: Container logs
+        if: failure()
+        run: docker logs kestrel-ci
+
+      - name: Stop the container
+        if: always()
+        run: docker rm --force kestrel-ci

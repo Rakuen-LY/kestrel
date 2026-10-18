@@ -4,6 +4,7 @@ import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import {
+  KESTREL_VERSION,
   PROTOCOL_VERSION,
   type ApiErrorBody,
   type ApprovalDecision,
@@ -30,8 +31,6 @@ import { CheckpointError } from "./checkpoints.js";
 import type { PluginRouteMatch } from "./plugin-http.js";
 import { WorkspaceFiles, WorkspaceFilesError } from "./workspace-files.js";
 import type { Runtime } from "./runtime.js";
-
-const VERSION = "0.1.0";
 
 const workspaceFiles = new WorkspaceFiles();
 
@@ -98,7 +97,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     const health: HealthResponse = {
       status: "ok",
       name: runtime.config.name ?? "Kestrel",
-      version: VERSION,
+      version: KESTREL_VERSION,
       protocol: PROTOCOL_VERSION,
       uptimeMs: Date.now() - runtime.startedAt,
       plugins: runtime.plugins.list().filter((plugin) => plugin.state === "active").length,
@@ -213,7 +212,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
   if (url.pathname === "/api/bootstrap" && method === "GET") {
     const bootstrap: BootstrapResponse = {
       name: runtime.config.name ?? "Kestrel",
-      version: VERSION,
+      version: KESTREL_VERSION,
       protocol: PROTOCOL_VERSION,
       models: runtime.models.list(),
       tools: runtime.tools.schemas(),

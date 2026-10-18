@@ -33,6 +33,8 @@ Useful commands:
 | `pnpm lint` | `oxlint` over packages, apps and plugins. |
 | `pnpm test` | Vitest, once. |
 | `pnpm test:watch` | Vitest in watch mode. |
+| `pnpm version:check` | Assert the version is identical in source, manifests and workspace packages. |
+| `pnpm smoke` | Boot the built server and assert the release-facing HTTP surface. Run after `pnpm build`. |
 | `pnpm docs:dev` | Documentation site with hot reload. |
 
 ## Repository layout
@@ -108,7 +110,7 @@ The worked example in [Writing a plugin](/guide/writing-plugins) is the template
 
 A change is ready when:
 
-- the build, typecheck, lint and tests pass locally;
+- the build, typecheck, lint, tests and artifact smoke test pass locally;
 - new behaviour is documented;
 - failure modes are handled and visible;
 - a reviewer can understand the diff without reading this file.

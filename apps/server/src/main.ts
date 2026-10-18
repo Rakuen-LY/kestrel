@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { KESTREL_VERSION } from "@kestrel/protocol";
 import { createHttpServer } from "./http.js";
 import { createRuntime } from "./runtime.js";
 
@@ -80,7 +81,7 @@ export async function main(): Promise<void> {
     return;
   }
   if (values.version) {
-    process.stdout.write("kestrel-server 0.1.0\n");
+    process.stdout.write(`kestrel-server ${KESTREL_VERSION}\n`);
     return;
   }
 

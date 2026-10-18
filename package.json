@@ -19,6 +19,9 @@
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint packages apps plugins",
+    "smoke": "node scripts/smoke.mjs",
+    "version:check": "node scripts/version.mjs --check",
+    "version:set": "node scripts/version.mjs",
     "docs:dev": "pnpm --filter @kestrel/docs dev",
     "docs:build": "pnpm --filter @kestrel/docs build"
   },

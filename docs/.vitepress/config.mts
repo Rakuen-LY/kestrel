@@ -81,6 +81,7 @@ export default defineConfig({
           text: "Operating Kestrel",
           items: [
             { text: "Deployment", link: "/guide/deployment" },
+            { text: "Releasing", link: "/guide/releasing" },
             { text: "Security model", link: "/guide/security" },
             { text: "Roadmap", link: "/guide/roadmap" },
           ],

@@ -18,7 +18,7 @@ import {
 } from "@kestrel/server";
 import { isSessionGuardError } from "@kestrel/agent";
 import { SkillCatalog, lintSkills, normalizeName, scaffoldSkill } from "@kestrel/plugin-skills";
-import type { ServerEventEnvelope } from "@kestrel/protocol";
+import { KESTREL_VERSION, type ServerEventEnvelope } from "@kestrel/protocol";
 
 const HELP = `Kestrel — plugin-first agent platform
 
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
   });
 
   if (values.version) {
-    stdout.write("kestrel 0.1.0\n");
+    stdout.write(`kestrel ${KESTREL_VERSION}\n`);
     return;
   }
   if (values.help || positionals.length === 0) {

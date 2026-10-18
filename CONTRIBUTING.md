@@ -9,7 +9,7 @@ Quick version:
 ```bash
 corepack enable
 pnpm install
-pnpm typecheck && pnpm lint && pnpm test && pnpm docs:build
+pnpm version:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm smoke && pnpm docs:build
 ```
 
 Use focused commits with imperative subjects. Add tests for behaviour changes and update the
