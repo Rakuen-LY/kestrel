@@ -8,6 +8,9 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 env:
   KESTREL_LOG_LEVEL: silent
 
@@ -40,6 +43,8 @@ jobs:
       - run: pnpm version:check
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: Assert a Chromium-compatible browser
+        run: command -v google-chrome || command -v google-chrome-stable || command -v chromium
       - run: pnpm test
       - run: pnpm build
       - run: pnpm smoke
