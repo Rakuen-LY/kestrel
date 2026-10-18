@@ -8,6 +8,8 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- `@kestrel/plugin-anthropic`: native Messages API provider with streaming text, extended thinking,
+  tool use, images, usage accounting and proxy-friendly `baseUrl` handling.
 - Session guards: `SessionManager.addGuard()` lets a plugin veto session creation and run launches.
   A rejected action throws `SessionGuardError`, which the HTTP server reports as `429` with
   `Retry-After` and the CLI prints verbatim. Guards run before the transcript is touched.

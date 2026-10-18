@@ -48,7 +48,7 @@ without changing a line of agent code.
 
 | Concern | Plugin | Contract |
 | --- | --- | --- |
-| Model access | `@kestrel/plugin-openai` | provides `models` |
+| Model access | `@kestrel/plugin-openai`, `@kestrel/plugin-anthropic` | provide `models` |
 | Filesystem and shell tools | `@kestrel/plugin-tools-core` | provides `tools` |
 | Durable notes | `@kestrel/plugin-memory` | injects `tools`, provides `memory` |
 | Model Context Protocol | `@kestrel/plugin-mcp` | injects `tools`, provides `mcp` |

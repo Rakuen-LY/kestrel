@@ -1,0 +1,14 @@
+{
+  "name": "@kestrel/plugin-anthropic",
+  "version": "0.1.0",
+  "description": "Anthropic Messages API provider: streaming text, thinking, tool use and images.",
+  "entry": "dist/index.js",
+  "inject": [
+    "models"
+  ],
+  "config": {
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5"
+  }
+}

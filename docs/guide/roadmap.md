@@ -103,7 +103,7 @@ See [Plugin UI](/guide/plugin-ui).
 
 ## Later
 
-- More provider plugins: Anthropic-native, Gemini-native, local llama.cpp server.
+- More provider plugins: Gemini-native, local llama.cpp server.
 - More tool packs: browser automation, LSP-aware code navigation, database access.
 - Evaluation harness: replay recorded sessions against new models.
 - Helm chart and Terraform module.

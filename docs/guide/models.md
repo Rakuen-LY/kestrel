@@ -85,6 +85,49 @@ For a local Ollama instance:
 }
 ```
 
+## Anthropic
+
+`@kestrel/plugin-anthropic` speaks the Messages API directly, including streaming text, extended
+thinking, tool use and base64 images. Use it rather than the OpenAI-compatible plugin when you need
+native thinking blocks or Anthropic prompt caching headers.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `baseUrl` | `https://api.anthropic.com` | Origin or proxy root; `/v1` is appended unless present. |
+| `apiKey` | — | Literal key. Prefer `apiKeyEnv`. |
+| `apiKeyEnv` | `ANTHROPIC_API_KEY` | Environment variable to read the key from. |
+| `headers` | `{}` | Extra request headers (for gateways). |
+| `provider` | `anthropic` | Label shown in clients. |
+| `model` | `claude-sonnet-4-5` | Single model id. |
+| `models` | — | List of model ids to register. |
+| `maxTokens` | `4096` | `max_tokens` is required by the API; sent with every request. |
+| `thinkingBudget` | — | Enables extended thinking with this token budget. Forces `temperature` off. |
+| `anthropicVersion` | `2023-06-01` | `anthropic-version` header. |
+| `timeoutMs` | `180000` | Request timeout. |
+
+```json
+{
+  "model": { "default": "claude-sonnet-4-5" },
+  "plugins": {
+    "config": {
+      "@kestrel/plugin-anthropic": {
+        "models": ["claude-sonnet-4-5", "claude-haiku-4-5"],
+        "thinkingBudget": 4096
+      }
+    }
+  }
+}
+```
+
+Wire-format notes the adapter handles for you:
+
+- The system prompt is a top-level `system` field, not a message.
+- Tool results are `tool_result` blocks inside a user turn; parallel results are merged into one
+  turn, which the API requires.
+- Assistant tool calls become `tool_use` blocks whose `input` is the decoded argument object.
+- `stop_reason` maps to Kestrel's finish reasons: `tool_use` → `tool_calls`, `max_tokens` →
+  `length`, `refusal` → `content_filter`.
+
 ## Default model selection
 
 1. `model.default` in configuration wins if the model exists.
