@@ -178,3 +178,8 @@ never contains agent logic.
   execution. Sampling is off by default, budgets completions (`maxTokens`) and requests per call,
   and never enters the transcript; the models service is resolved lazily so sampling-disabled
   installs need no model registry.
+- Plugin UI bundles are untrusted: they run in `sandbox="allow-scripts"` iframes whose document is
+  served by the API with an opaque origin. The parent is the only channel: discovery and mount
+  messages, height reports, and proxied `request` calls. Never import bundles into the console
+  origin; the bearer token lives only in the parent. Plugin CSS vars are copied on mount and on
+  `prefers-color-scheme` changes. The console CSP needs `frame-src *` for cross-origin deployments.

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KestrelApi } from "../api.js";
-import type { ConsoleContext, LoadedExtension, SlotName } from "../extensions.js";
+import { themeVariables, type LoadedExtension, type SlotName } from "../extensions.js";
 
 export function PluginSlot({
   slot,
@@ -20,43 +20,147 @@ export function PluginSlot({
   return (
     <>
       {matching.map((extension) => (
-        <PluginMount
-          key={`${extension.plugin.id}:${extension.id}`}
+        <PluginFrame
+          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}`}
           extension={extension}
-          context={{
-            plugin: extension.plugin,
-            endpoint: api.endpoint,
-            sessionId,
-            request: (path, init) => api.request(path, init),
-          }}
+          api={api}
+          sessionId={sessionId}
         />
       ))}
     </>
   );
 }
 
-function PluginMount({ extension, context }: { extension: LoadedExtension; context: ConsoleContext }) {
-  const host = useRef<HTMLDivElement>(null);
+/**
+ * One contribution, one iframe. The frame has an opaque origin and talks to
+ * the console over postMessage: it can render its own DOM, but API calls are
+ * proxied with the console's token and never see it.
+ */
+function PluginFrame({
+  extension,
+  api,
+  sessionId,
+}: {
+  extension: LoadedExtension;
+  api: KestrelApi;
+  sessionId?: string;
+}) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(0);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
-    const element = host.current;
+    const element = frame.current;
     if (!element) return;
-    let cleanup: void | (() => void);
-    try {
-      cleanup = extension.mount(element, context);
-    } catch (error) {
-      element.textContent = `Extension "${extension.id}" failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`;
-      element.dataset.failed = "true";
-    }
-    return () => {
-      if (typeof cleanup === "function") cleanup();
-      element.replaceChildren();
-    };
-    // The context is rebuilt on session changes; mount keys off the session id.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extension, context.sessionId]);
+    let mounted = false;
 
-  return <div className="plugin-extension" data-plugin={extension.plugin.id} data-slot={extension.slot} ref={host} />;
+    const send = (message: unknown): void => {
+      element.contentWindow?.postMessage(message, "*");
+    };
+    const init = (): void => {
+      send({
+        type: "kestrel:init",
+        mode: "mount",
+        extensionId: extension.id,
+        slot: extension.slot,
+        plugin: extension.plugin,
+        endpoint: extension.endpoint,
+        entry: extension.entry,
+        css: extension.css,
+        sessionId,
+        theme: themeVariables(),
+      });
+    };
+
+    let scheduled = false;
+    const sendTheme = (): void => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        send({ type: "kestrel:theme", vars: themeVariables() });
+      });
+    };
+
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== element.contentWindow) return;
+      const data = event.data as
+        | {
+            type?: string;
+            height?: unknown;
+            message?: unknown;
+            id?: unknown;
+            path?: unknown;
+            init?: unknown;
+            ok?: unknown;
+            data?: unknown;
+            error?: unknown;
+          }
+        | undefined;
+      if (!data || typeof data !== "object") return;
+
+      if (data.type === "kestrel:ready") {
+        init();
+      } else if (data.type === "kestrel:mounted") {
+        mounted = true;
+      } else if (data.type === "kestrel:height") {
+        if (typeof data.height === "number" && Number.isFinite(data.height)) {
+          setHeight(Math.max(0, Math.ceil(data.height)));
+        }
+      } else if (data.type === "kestrel:error") {
+        setError(typeof data.message === "string" ? data.message : "The extension failed.");
+      } else if (data.type === "kestrel:request" && typeof data.id === "number") {
+        if (typeof data.path !== "string") return;
+        const init = (data.init ?? {}) as RequestInit;
+        api
+          .request(data.path, init)
+          .then((result) => send({ type: "kestrel:response", id: data.id, ok: true, data: result }))
+          .catch((cause: unknown) =>
+            send({
+              type: "kestrel:response",
+              id: data.id,
+              ok: false,
+              error: cause instanceof Error ? cause.message : String(cause),
+            }),
+          );
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    const scheme = window.matchMedia("(prefers-color-scheme: light)");
+    scheme.addEventListener("change", sendTheme);
+    const observer = new MutationObserver(sendTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+
+    // Set src after the listener: a cached iframe can post `ready` immediately.
+    element.src = `${api.endpoint}/plugin-sandbox.html`;
+
+    return () => {
+      window.removeEventListener("message", onMessage);
+      scheme.removeEventListener("change", sendTheme);
+      observer.disconnect();
+      if (mounted) element.src = "about:blank";
+    };
+  }, [api, extension, sessionId]);
+
+  if (error) {
+    return (
+      <div className="plugin-extension-error" role="status">
+        Extension {extension.id} failed: {error}
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      ref={frame}
+      className="plugin-frame"
+      data-slot={extension.slot}
+      data-plugin={extension.plugin.id}
+      title={`${extension.plugin.name}: ${extension.id}`}
+      sandbox="allow-scripts"
+      referrerPolicy="no-referrer"
+      style={{ height: `${height}px` }}
+    />
+  );
 }

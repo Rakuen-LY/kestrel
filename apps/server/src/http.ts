@@ -558,6 +558,10 @@ async function serveStatic(
   if (req.method !== "GET" && req.method !== "HEAD") {
     throw new HttpError(405, "method_not_allowed", "Static content is read-only.");
   }
+  if (url.pathname === "/plugin-sandbox.html") {
+    servePluginSandbox(res, url);
+    return;
+  }
   if (await servePluginAsset(runtime, req, res, url)) return;
   const root = resolve(runtime.config.server.webRoot ?? resolve(process.cwd(), "apps/web/dist"));
   let pathname: string;
@@ -596,7 +600,7 @@ async function serveStatic(
     ...(ext === ".html"
       ? {
           "content-security-policy":
-            "default-src 'self'; connect-src *; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:",
+            "default-src 'self'; connect-src *; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src *",
         }
       : {}),
   });
@@ -605,6 +609,178 @@ async function serveStatic(
     return;
   }
   createReadStream(target).pipe(res);
+}
+
+/**
+ * Host document for plugin iframes. `sandbox="allow-scripts"` gives it an
+ * opaque origin, so plugin code cannot read the console's localStorage or
+ * cookies; every API call is proxied through the parent. The CSP restricts
+ * the sandbox to its own bundle and styles, with no direct network access.
+ */
+function servePluginSandbox(res: ServerResponse, url: URL): void {
+  res.removeHeader("x-frame-options");
+  res.removeHeader("cross-origin-opener-policy");
+  // Behind a TLS terminator the request URL may still be http while the browser
+  // framed an https copy; allow both schemes on this host, nothing broader.
+  const alternate = url.protocol === "https:" ? "http:" : "https:";
+  const origin = `${url.origin} ${alternate}//${url.host}`;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kestrel plugin</title>
+<style>html,body{margin:0;padding:0;background:transparent;color:var(--text,inherit);font-family:var(--sans,system-ui,sans-serif);font-size:13px}body{overflow:hidden}.kestrel-extension{display:block}</style>
+</head>
+<body>
+<script type="module">
+const parentWindow = window.parent;
+const pending = new Map();
+let sequence = 0;
+
+const post = (message) => parentWindow.postMessage(message, "*");
+
+function applyTheme(vars) {
+  for (const [name, value] of Object.entries(vars ?? {})) {
+    document.documentElement.style.setProperty(name, value);
+  }
+}
+
+function request(path, init = {}) {
+  const id = ++sequence;
+  const headers = init.headers instanceof Headers ? Object.fromEntries(init.headers) : init.headers;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    post({
+      type: "kestrel:request",
+      id,
+      path,
+      init: {
+        method: init.method,
+        headers: headers ?? undefined,
+        body: typeof init.body === "string" ? init.body : undefined,
+      },
+    });
+  });
+}
+
+function reportHeight() {
+  post({ type: "kestrel:height", height: Math.ceil(document.body.getBoundingClientRect().height) });
+}
+
+function observeHeight() {
+  new ResizeObserver(reportHeight).observe(document.body);
+  reportHeight();
+}
+
+async function loadStyles(hrefs) {
+  await Promise.all(
+    (hrefs ?? []).map(
+      (href) =>
+        new Promise((resolve) => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          link.onload = resolve;
+          link.onerror = resolve;
+          document.head.append(link);
+        }),
+    ),
+  );
+}
+
+async function start(data) {
+  applyTheme(data.theme);
+  await loadStyles(data.css);
+
+  const module = await import(data.entry);
+  const activate = module.default;
+  if (typeof activate !== "function") {
+    throw new Error("The bundle must export default (api) => void.");
+  }
+
+  const context = {
+    plugin: data.plugin,
+    endpoint: data.endpoint,
+    sessionId: data.sessionId,
+    request,
+  };
+  const registered = [];
+  let mounted = false;
+
+  await activate({
+    context,
+    register(extension) {
+      if (!extension || typeof extension.mount !== "function" || !extension.id || !extension.slot) return;
+      if (data.mode === "discover") {
+        registered.push({ id: extension.id, slot: extension.slot, order: extension.order });
+        return;
+      }
+      if (extension.id !== data.extensionId || extension.slot !== data.slot) return;
+      mounted = true;
+      const element = document.createElement("div");
+      element.className = "kestrel-extension";
+      element.dataset.extension = extension.id;
+      document.body.append(element);
+      const cleanup = extension.mount(element, context);
+      if (typeof cleanup === "function") window.addEventListener("pagehide", cleanup, { once: true });
+    },
+  });
+
+  if (data.mode === "discover") {
+    post({ type: "kestrel:registered", extensions: registered });
+    return;
+  }
+  if (!mounted) {
+    throw new Error('No extension "' + data.extensionId + '" for slot "' + data.slot + '".');
+  }
+  post({ type: "kestrel:mounted" });
+  observeHeight();
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== parentWindow) return;
+  const data = event.data;
+  if (!data || typeof data !== "object") return;
+  if (data.type === "kestrel:init") {
+    start(data).catch((error) =>
+      post({ type: "kestrel:error", message: error instanceof Error ? error.message : String(error) }),
+    );
+  } else if (data.type === "kestrel:theme") {
+    applyTheme(data.vars);
+    reportHeight();
+  } else if (data.type === "kestrel:response") {
+    const entry = pending.get(data.id);
+    if (!entry) return;
+    pending.delete(data.id);
+    if (data.ok) entry.resolve(data.data);
+    else entry.reject(new Error(typeof data.error === "string" ? data.error : "Request failed."));
+  }
+});
+
+window.addEventListener("error", (event) => post({ type: "kestrel:error", message: String(event.message) }));
+window.addEventListener("unhandledrejection", (event) =>
+  post({ type: "kestrel:error", message: String(event.reason?.message ?? event.reason) }),
+);
+
+post({ type: "kestrel:ready" });
+</script>
+</body>
+</html>`;
+  res.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-security-policy": [
+      "default-src 'none'",
+      `script-src 'unsafe-inline' ${origin}`,
+      `style-src 'unsafe-inline' ${origin}`,
+      `img-src data: blob: ${origin}`,
+      `font-src data: ${origin}`,
+      "connect-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+    ].join("; "),
+  });
+  res.end(html);
 }
 
 /**

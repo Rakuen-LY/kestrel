@@ -1893,6 +1893,20 @@ a {
   line-height: 1.5;
 }
 
+.plugin-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.plugin-extension-error {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 [data-slot="sidebar.footer"] {
   margin-bottom: 8px;
 }

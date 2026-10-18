@@ -146,9 +146,9 @@ export default function activate(api) {
 }
 ```
 
-The console imports the bundle from `/plugins/<id>/panel.js` only while the plugin is active, and
-mounts it into the slot. The token stays inside the console: the bundle gets an authenticated
-`request` function, not credentials. Full contract in [Plugin UI](/guide/plugin-ui).
+The console loads the bundle from `/plugins/<id>/panel.js` in a sandboxed iframe only while the
+plugin is active, and mounts it into the slot. The token stays inside the console: the bundle gets
+an authenticated `request` function, not credentials. Full contract in [Plugin UI](/guide/plugin-ui).
 
 ## Build a third example: a capability that links two services
 

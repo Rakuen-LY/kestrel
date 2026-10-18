@@ -4,7 +4,8 @@
 adds a sidebar summary, a settings section or a session header, without forking the console or
 depending on its React internals.
 
-This page covers the contract, the slots, and the trust boundary. The worked example is
+Bundles run in a sandboxed iframe, not in the console's origin. This page covers the contract, the
+slots and the trust boundary. The worked example is
 `examples/plugins/web-metrics`, listed in [Example plugins](/guide/examples).
 
 ## Declaring a bundle
@@ -53,8 +54,9 @@ secrets in a bundle.
 
 ## The module contract
 
-The default export is called once per page load, after `/api/bootstrap` reports the plugin as
-active:
+The default export runs inside a sandboxed iframe, after `/api/bootstrap` reports the plugin as
+active. It runs once in a short discovery pass and again in the iframe that mounts each extension,
+so keep activation free of global side effects: register, do not start work.
 
 ```ts
 type Activate = (api: ConsoleModuleApi) => void | Promise<void>;
@@ -79,12 +81,18 @@ interface ConsoleExtension {
 }
 ```
 
-`request` goes through the console's authenticated client: the bearer token is attached for you and
-is **not** exposed to the bundle. Use it for every API call so headers and error handling stay
-consistent.
+`request` is proxied through the console's authenticated client: the bearer token is attached by the
+parent and is **not** exposed to the bundle. Only `method`, plain `headers` and a string `body` cross
+the boundary; streams, `FormData` and `AbortSignal` do not. The promise resolves with parsed JSON,
+and non-2xx responses reject with the API message.
 
-`mount` receives an empty element that the console owns. Build whatever DOM you need; return a
-function to release timers, listeners or observers. The console clears the element after cleanup.
+`mount` receives an empty element inside the iframe. Build whatever DOM you need; return a function
+to release timers, listeners or observers. The iframe resizes to the content's height, so avoid
+`position: fixed` layers and full-viewport layouts.
+
+The console copies its CSS custom properties (`--bg`, `--text`, `--accent`, ...) onto the iframe
+root and refreshes them when the system colour scheme changes. Use `var(--text-muted)` rather than
+hard-coded colours so a bundle works in both themes.
 
 ## Slots
 
@@ -100,33 +108,55 @@ compatible than a component tree.
 
 ## Lifecycle and failures
 
-1. The console loads `/api/bootstrap`, then imports every active plugin's `web.entry`.
-2. Stylesheets are injected before the module runs.
-3. `activate(api)` registers extensions; duplicate ids within a plugin throw.
-4. Each extension mounts into its slot. A mount error is shown inside that slot.
-5. Errors are logged and listed under **Settings → Extension errors**; other plugins still load.
+1. The console loads `/api/bootstrap`, then opens a hidden sandbox per active bundle.
+2. The sandbox imports `web.entry` and calls `activate`; registrations are reported back as
+   metadata. Stylesheet URLs are loaded before the module runs.
+3. The console opens one visible sandbox per extension, matching `extensionId` and `slot`.
+4. `mount` renders into that sandbox; a mount error is shown in place of the extension.
+5. Discovery failures and runtime errors are listed under **Settings → Extension errors**; other
+   plugins still load.
 
-Reloading the page reloads bundles. There is no hot-reload channel yet, which keeps the contract
-small.
+A bundle that registers nothing, times out during discovery (five seconds) or throws is reported
+once and does not affect other plugins. Reloading the page reloads bundles; there is no hot-reload
+channel yet.
 
 ## Trust boundary
 
-A browser bundle is **code in the console's origin**. It can read `localStorage`, call any API the
-user can call, and alter the page. Only install plugins you trust, and review what they ship.
+The sandbox document is served by the Kestrel API at `/plugin-sandbox.html` and framed with
+`sandbox="allow-scripts"`. That combination gives the bundle an **opaque origin**:
 
-The console does not hand the token to plugin code, but same-origin code can read it from storage
-directly. If you need stronger isolation, the roadmap direction is sandboxed iframes or workers per
-bundle; until then, treat the plugin directory with the same care as the server's `node_modules`.
+- No access to the console's `localStorage`, `sessionStorage`, cookies or DOM.
+- No `window.opener`, popups or top-level navigation.
+- No direct network access: CSP sets `connect-src 'none'`. Images may come from `data:`, `blob:` or
+  the API origin; fonts and styles only from `data:` and the API origin. The entry and stylesheets
+  are the only scripts allowed, so a CDN import will not load.
+- No form submission. API access happens exclusively through the parent's `request` proxy, which
+  attaches the token after the call leaves the sandbox.
 
-Bundles must be same-origin with the console. When the console talks to a remote API, plugin assets
-still load from the API origin; the default CSP (`default-src 'self'`) and CORS will usually block
-that, so for now serve the console from the same Kestrel server as the API.
+This prevents token theft and page tampering. It is **not** a capability system: a plugin can still
+call every API route the signed-in user can call, spend model tokens, create sessions and read the
+workspace through the API. Review bundles like server-side plugins, and use `plugins.allow` when the
+plugin directory is not fully trusted. Per-plugin route grants are a roadmap item.
+
+The console and the API may live on different origins (a static console deployment, or the Vite dev
+server). The sandbox is always served by the API origin; plugin assets are public and CORS-enabled,
+and the console's CSP allows framing it.
+
+## Limitations
+
+- Bundles cannot share a DOM or React tree with the console; use slots and the API.
+- There is one iframe per extension, and discovery runs the bundle once more. Bundles should be
+  small, and activation must be side-effect free.
+- `request` speaks JSON only.
+- The sandbox cannot open links in a new tab; render an `<a>` and let the console own navigation, or
+  use the API.
 
 ## Writing bundles without a build step
 
-A bundle is plain ESM. No bundler, framework or import map is required: use DOM APIs directly, or
-import from a CDN if your deployment allows it. If you want TypeScript, compile to a single `.js`
-file and commit the output under `web/`; nothing in Kestrel inspects the source.
+A bundle is plain ESM. No bundler, framework or import map is required: use DOM APIs directly. The
+sandbox allows no third-party script origins, so relative imports must stay inside `web/` and a CDN
+import will fail. If you want TypeScript, compile to a single `.js` file and commit the output under
+`web/`; nothing in Kestrel inspects the source.
 
 React and other large dependencies are best avoided. If you need them, bundle your own copy inside
 the entry — the console's copy is not shared.

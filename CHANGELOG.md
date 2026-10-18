@@ -8,6 +8,10 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Sandboxed plugin UI: browser bundles now run in iframes with an opaque origin, served as
+  `/plugin-sandbox.html`. A discovery pass records slots, each extension mounts in its own
+  auto-sized frame, and API calls go through a postMessage proxy so the token never enters plugin
+  code. CSP blocks direct network access; the console copies its CSS variables into the frame.
 - MCP sampling: with `@kestrel/plugin-mcp` `sampling.enabled`, the client advertises the capability,
   answers `sampling/createMessage` from the model registry (hints, token ceiling, request budget)
   over stdio and streamable HTTP, and forwards the tool call's abort signal. Tool calls to one

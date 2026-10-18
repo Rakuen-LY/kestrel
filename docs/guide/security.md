@@ -96,15 +96,19 @@ cannot restrict this. Consequences:
 
 ### Browser bundles
 
-A plugin's `web` bundle is imported into the console's origin and runs with the signed-in user's
-privileges: it can read `localStorage` (including the token), call every API route the user can call
-and modify the page. The console passes an authenticated `request` helper, but that is a
-convenience, not a sandbox.
+A plugin's `web` bundle runs in a sandboxed iframe served by the API. `sandbox="allow-scripts"`
+gives it an opaque origin, so it cannot read the console's storage, cookies or DOM, and CSP blocks
+direct network access. API calls are proxied through the console, which attaches the bearer token
+outside the sandbox.
 
-- Review browser bundles with the same care as server-side plugin code.
+- Review browser bundles with the same care as server-side plugin code: the sandbox prevents token
+  theft, not misuse of the user's API privileges.
 - Assets are public and served only for active plugins; traversal outside `<plugin>/web` is rejected.
-- Bundles must be same-origin with the console; the default CSP blocks third-party script origins.
-- Sandboxed iframes or workers per bundle are a roadmap item, not a current guarantee.
+- The sandbox allows scripts and styles from the API origin only; there is no CDN or remote font
+  access.
+- Each extension gets its own iframe, and discovery runs the bundle once more. Keep bundles small.
+- Per-plugin API capability grants are a roadmap item; today the proxy exposes the same routes the
+  user can call.
 
 There is no plugin signature or registry yet. That is a roadmap item; until then, review the code.
 

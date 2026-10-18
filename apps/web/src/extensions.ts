@@ -33,8 +33,19 @@ export interface ConsoleModuleApi {
   context: ConsoleContext;
 }
 
-export interface LoadedExtension extends ConsoleExtension {
+/** A contribution discovered by running a bundle in a throwaway sandbox. */
+export interface ExtensionContribution {
+  id: string;
+  slot: SlotName;
+  order?: number;
+}
+
+/** Everything the console needs to load a contribution in its own iframe. */
+export interface LoadedExtension extends ExtensionContribution {
   plugin: ConsoleContext["plugin"];
+  endpoint: string;
+  entry: string;
+  css: string[];
 }
 
 export interface ExtensionError {
@@ -42,9 +53,20 @@ export interface ExtensionError {
   message: string;
 }
 
+interface DiscoveryInput {
+  plugin: ConsoleContext["plugin"];
+  endpoint: string;
+  entry: string;
+  css: string[];
+}
+
+const DISCOVERY_TIMEOUT_MS = 5_000;
+const SLOTS = new Set<SlotName>(["sidebar.footer", "settings.section", "session.header"]);
+
 /**
- * Imports every active plugin's browser bundle and collects what it registers.
- * One broken bundle never blocks the others or the console itself.
+ * Runs every active bundle in a sandboxed iframe and records what it registers.
+ * Bundles never execute in the console's origin: the iframe has an opaque
+ * origin, no access to storage or cookies, and no direct network access.
  */
 export async function loadConsoleExtensions(
   plugins: PluginInfo[],
@@ -55,33 +77,30 @@ export async function loadConsoleExtensions(
 
   for (const plugin of plugins) {
     if (plugin.state !== "active" || !plugin.web) continue;
-    const base = `${api.endpoint}/plugins/${encodeURIComponent(plugin.id)}/`;
     const identity = { id: plugin.id, name: plugin.name, version: plugin.version };
+    const base = `${api.endpoint}/plugins/${encodeURIComponent(plugin.id)}/`;
+    const entry = base + plugin.web.entry;
+    const css = (plugin.web.css ?? []).map((href) => base + href);
 
     try {
-      for (const href of plugin.web.css ?? []) injectStylesheet(base + href);
-      const module = (await import(/* @vite-ignore */ base + plugin.web.entry)) as { default?: unknown };
-      const activate = module.default;
-      if (typeof activate !== "function") {
-        throw new Error("The bundle must export default (api) => void.");
-      }
-      const context: ConsoleContext = {
+      const contributions = await discover({
         plugin: identity,
         endpoint: api.endpoint,
-        request: (path, init) => api.request(path, init),
-      };
-      await (activate as (api: ConsoleModuleApi) => unknown)({
-        context,
-        register(extension) {
-          if (!extension?.id || typeof extension.mount !== "function" || !isSlot(extension.slot)) {
-            throw new Error("register() needs { id, slot, mount }.");
-          }
-          if (extensions.some((item) => item.plugin.id === plugin.id && item.id === extension.id)) {
-            throw new Error(`Duplicate extension id "${extension.id}".`);
-          }
-          extensions.push({ ...extension, plugin: identity });
-        },
+        entry,
+        css,
       });
+      for (const contribution of contributions) {
+        if (extensions.some((item) => item.plugin.id === plugin.id && item.id === contribution.id)) {
+          throw new Error(`Duplicate extension id "${contribution.id}".`);
+        }
+        extensions.push({
+          ...contribution,
+          plugin: identity,
+          endpoint: api.endpoint,
+          entry,
+          css,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push({ plugin: plugin.name, message });
@@ -92,20 +111,94 @@ export async function loadConsoleExtensions(
   return { extensions, errors };
 }
 
-function isSlot(value: unknown): value is SlotName {
-  return value === "sidebar.footer" || value === "settings.section" || value === "session.header";
+async function discover(input: DiscoveryInput): Promise<ExtensionContribution[]> {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-scripts");
+  frame.setAttribute("aria-hidden", "true");
+  frame.tabIndex = -1;
+  Object.assign(frame.style, {
+    position: "fixed",
+    width: "0",
+    height: "0",
+    border: "0",
+    opacity: "0",
+    pointerEvents: "none",
+  });
+  document.body.append(frame);
+  frame.src = `${input.endpoint}/plugin-sandbox.html`;
+
+  return new Promise<ExtensionContribution[]>((resolve, reject) => {
+    let settled = false;
+    const finish = (error?: Error, value?: ExtensionContribution[]): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+      frame.remove();
+      if (error) reject(error);
+      else resolve(value ?? []);
+    };
+    const timer = setTimeout(
+      () => finish(new Error("The bundle did not register an extension in time.")),
+      DISCOVERY_TIMEOUT_MS,
+    );
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== frame.contentWindow) return;
+      const data = event.data as { type?: string; extensions?: unknown; message?: unknown } | undefined;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "kestrel:ready") {
+        frame.contentWindow?.postMessage(
+          {
+            type: "kestrel:init",
+            mode: "discover",
+            plugin: input.plugin,
+            endpoint: input.endpoint,
+            entry: input.entry,
+            css: input.css,
+            theme: themeVariables(),
+          },
+          "*",
+        );
+      } else if (data.type === "kestrel:registered") {
+        finish(undefined, normalizeContributions(data.extensions));
+      } else if (data.type === "kestrel:error") {
+        finish(new Error(typeof data.message === "string" ? data.message : "The bundle failed to load."));
+      }
+    };
+    window.addEventListener("message", onMessage);
+  });
 }
 
-const injected = new Set<string>();
+function normalizeContributions(value: unknown): ExtensionContribution[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const contributions: ExtensionContribution[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { id?: unknown; slot?: unknown; order?: unknown };
+    if (typeof record.id !== "string" || !record.id || seen.has(record.id)) continue;
+    if (typeof record.slot !== "string" || !SLOTS.has(record.slot as SlotName)) continue;
+    seen.add(record.id);
+    contributions.push({
+      id: record.id,
+      slot: record.slot as SlotName,
+      ...(typeof record.order === "number" ? { order: record.order } : {}),
+    });
+  }
+  return contributions;
+}
 
-function injectStylesheet(href: string): void {
-  if (injected.has(href)) return;
-  injected.add(href);
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = href;
-  link.dataset.kestrelPlugin = href;
-  document.head.append(link);
+/** Copies the console's CSS custom properties so plugin DOM inherits the theme. */
+export function themeVariables(): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const element of [document.documentElement, document.body]) {
+    const style = getComputedStyle(element);
+    for (let index = 0; index < style.length; index += 1) {
+      const name = style[index];
+      if (name.startsWith("--")) vars[name] = style.getPropertyValue(name);
+    }
+  }
+  return vars;
 }
 
 /** Loads extensions once per plugin set and exposes them to the app. */

@@ -35,12 +35,11 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 
 ### 2. Plugin UI hardening
 
-MCP tools, resources and prompts are bridged; sampling and elicitation are the remaining work.
+Bundles load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
+plugin's `web/` directory, each in a sandboxed iframe with an opaque origin and a proxied API. The
+remaining work is about capability, not isolation:
 
-Bundles now load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
-plugin's `web/` directory. Remaining work:
-
-- Sandbox bundles in an iframe or module worker, with an explicit capability list.
+- Per-plugin route grants, so a bundle can be limited to, say, `/api/sessions` reads.
 - More slots: message renderer, composer actions, file viewer.
 - A dev channel that reloads a bundle without a page refresh.
 
