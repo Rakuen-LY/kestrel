@@ -81,9 +81,9 @@ See [Plugin UI](/guide/plugin-ui).
 - ~~Skill authoring UX~~ — `kestrel skills` lists and shows procedures, `skills lint` validates
   files (including the ones the runtime would skip) and `skills new` scaffolds them; see
   [Skills](/guide/skills).
-- ~~Multimodal user messages~~ — images ship in the console and the API; see
-  [Images](/guide/models#images). Still missing: image-producing tools and attachments on tool
-  results.
+- ~~Multimodal messages~~ — images ship in the console, the API and tool results; see
+  [Images](/guide/models#images) and
+  [images from tools](/guide/models#images-from-tools). Still missing: audio, PDF and video inputs.
 - ~~Checkpoints and rollback for workspace edits~~ — shipped; see [Checkpoints](/guide/checkpoints).
 - ~~Rewind of the transcript alongside files~~ — `POST /api/sessions/:id/rewind` truncates at a
   user message and restores its snapshot in one call. See [Rewind a turn](/guide/checkpoints#rewinding-a-turn).
