@@ -95,6 +95,21 @@ jobs:
             console.log(`container healthy: ${health.version}, ${health.plugins} plugins`);
           '
 
+      - name: Assert every plugin loaded
+        run: |
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ci-token" \
+            http://127.0.0.1:7331/api/plugins --output plugins.json
+          node -e '
+            const { plugins } = require("./plugins.json");
+            const broken = plugins.filter((plugin) => plugin.state === "error");
+            if (broken.length) {
+              throw new Error(broken.map((plugin) => `${plugin.name}: ${plugin.error}`).join("; "));
+            }
+            if (plugins.length < 14) throw new Error(`only ${plugins.length} plugins discovered`);
+            console.log(`container plugins: ${plugins.length} active`);
+          '
+
       - name: Assert the container is unprivileged
         run: |
           user_id=$(docker run --rm kestrel:ci id -u)
@@ -107,3 +122,21 @@ jobs:
       - name: Stop the container
         if: always()
         run: docker rm --force kestrel-ci
+
+  manifests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Catches a Compose file that only fails at `up` time: undefined variables,
+      # bad interpolation, or a service that references a missing volume.
+      - name: Validate Compose file
+        env:
+          KESTREL_TOKEN: ci-token
+        run: docker compose config --quiet
+
+      - name: Validate Kubernetes manifests
+        uses: docker://ghcr.io/yannh/kubeconform:latest
+        with:
+          args: -strict -ignore-missing-schemas -summary deploy/k8s

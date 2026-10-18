@@ -8,7 +8,7 @@ import type {
   TokenDelta,
   Usage,
 } from "@kestrel/agent";
-import { modelHttpError, modelNetworkError, ModelRequestError } from "@kestrel/agent";
+import { modelHttpError, modelNetworkError, ModelRequestError } from "@kestrel/agent/errors";
 import type { Context } from "@kestrel/kernel";
 
 export interface OpenAIProviderConfig {

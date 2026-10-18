@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "build": "tsup --config ../../tsup.plugin.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

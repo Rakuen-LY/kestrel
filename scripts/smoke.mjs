@@ -8,16 +8,27 @@
  * that only type-checks but cannot start never ships.
  */
 import { spawn } from "node:child_process";
+import { builtinModules } from "node:module";
 import { createServer } from "node:net";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOKEN = "smoke-token";
 const failures = [];
 let serverOutput = "";
+
+async function jsFiles(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await jsFiles(path)));
+    else if (entry.name.endsWith(".js")) files.push(path);
+  }
+  return files;
+}
 
 function freePort() {
   return new Promise((resolvePort, reject) => {
@@ -110,8 +121,51 @@ const auth = { authorization: `Bearer ${TOKEN}` };
 const releaseVersion = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8")).version;
 
 try {
-  const health = await waitForHealth(base, 60_000);
   console.log(`Smoke test against ${base}\n`);
+
+  await check("plugin bundles are self-contained", async () => {
+    const directory = join(repoRoot, "plugins");
+    const isolated = await mkdtemp(join(tmpdir(), "kestrel-plugins-"));
+    await writeFile(join(isolated, "package.json"), '{"type":"module"}');
+    const plugins = await readdir(directory);
+    const problems = [];
+
+    for (const plugin of plugins) {
+      let files;
+      try {
+        files = await jsFiles(join(directory, plugin, "dist"));
+      } catch {
+        continue;
+      }
+      for (const file of files) {
+        const source = await readFile(file, "utf8");
+        for (const match of source.matchAll(/\bfrom\s+["']([^"']+)["']/g)) {
+          const specifier = match[1];
+          const bare = !specifier.startsWith(".") && !specifier.startsWith("/");
+          const resolvable = /^(@[\w.-]+\/)?[\w.-]+$/.test(specifier);
+          if (bare && resolvable && !specifier.startsWith("node:") && !builtinModules.includes(specifier)) {
+            problems.push(`${file.slice(repoRoot.length + 1)} imports ${specifier}`);
+          }
+        }
+      }
+
+      // Load the bundle the way the image does: dist alone, no node_modules.
+      const entry = join(directory, plugin, "dist/index.js");
+      const copy = join(isolated, plugin);
+      await cp(join(directory, plugin, "dist"), join(copy, "dist"), { recursive: true });
+      try {
+        await import(pathToFileURL(join(copy, "dist/index.js")).href);
+      } catch (error) {
+        problems.push(`${entry.slice(repoRoot.length + 1)} failed to load: ${error.message}`);
+      }
+    }
+
+    await rm(isolated, { recursive: true, force: true });
+    expect(problems.length === 0, problems.join("; "));
+    return `${plugins.length} plugins`;
+  });
+
+  const health = await waitForHealth(base, 60_000);
 
   await check("health reports the release version", () => {
     expect(health.status === "ok", `status ${health.status}`);
@@ -149,6 +203,17 @@ try {
     const csv = plugins.find((plugin) => plugin.name === "@example/plugin-csv-viewer");
     expect(csv.state === "active", `csv-viewer state ${csv.state}`);
     return `${plugins.length} plugins`;
+  });
+
+  await check("every discovered plugin activated", async () => {
+    const response = await fetch(`${base}/api/plugins`, { headers: auth });
+    const { plugins } = await response.json();
+    // A plugin that cannot resolve an import still lets the server boot; without
+    // this check a broken bundle would only surface when a user opened it.
+    const broken = plugins.filter((plugin) => plugin.state === "error");
+    expect(broken.length === 0, broken.map((plugin) => `${plugin.name}: ${plugin.error}`).join("; "));
+    expect(plugins.length >= 14, `only ${plugins.length} plugins discovered`);
+    return `${plugins.length} active`;
   });
 
   await check("packaged console is served", async () => {

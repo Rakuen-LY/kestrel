@@ -35,6 +35,9 @@
       "@kestrel/agent": [
         "packages/agent/src/index.ts"
       ],
+      "@kestrel/agent/errors": [
+        "packages/agent/src/errors.ts"
+      ],
       "@kestrel/plugin-host": [
         "packages/plugin-host/src/index.ts"
       ],

@@ -264,8 +264,14 @@ For full-loop tests, construct a `SessionManager` with a `ScriptedModel`; see
 
 ## 7. Ship it
 
-- Build with `tsup` so the entry is a single ESM file.
-- Keep `@kestrel/*` packages external; the host provides them at runtime.
+- Build with `tsup` so the entry is a single ESM file. In this repository the shared
+  `tsup.plugin.config.ts` also inlines `@kestrel/*`, because the server loads plugins from their
+  directory alone and does not ship the workspace packages.
+- Prefer type-only imports from `@kestrel/agent`. If a plugin needs a runtime helper, import it from
+  `@kestrel/agent/errors`; the package root also re-exports the SQLite session store, which a plugin
+  bundle has no business carrying.
+- `pnpm smoke` imports every built bundle from a scratch directory with no `node_modules` to prove
+  it is self-contained.
 - Add the plugin directory to `KESTREL_PLUGINS`, or install it into a directory the host scans.
 - Document the configuration keys and the services it provides.
 - Reference providers through `inject` rather than importing across packages.

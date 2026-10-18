@@ -13,8 +13,10 @@ All notable changes to Kestrel are documented here. The format follows
   `pnpm version:check` (also a unit test) fails on drift. `/api/health`, `/api/bootstrap`, the CLI
   and `kestrel-server --version` all report it, so an image cannot disagree with its tag.
 - `pnpm smoke` (`scripts/smoke.mjs`) boots the compiled server in a throwaway workspace and asserts
-  health, auth, bootstrap, console bundle, plugin discovery and the SSE `ready` frame. CI and the
-  release workflow run it, so a bundle that compiles but cannot start never ships.
+  health, auth, bootstrap, console bundle, plugin discovery and the SSE `ready` frame. It also
+  imports every plugin bundle from a scratch directory with no `node_modules`, which is how the
+  image loads them. CI and the release workflow run it, so a bundle that compiles but cannot start
+  never ships.
 - HTTP error contract suite (`apps/server/test/http-errors.test.ts`): 17 cases pin status, headers
   (`cache-control: no-store`) and `error.code` for unknown routes, bad methods, malformed or
   oversized bodies, unknown sessions, traversal attempts, missing assets and disabled account
@@ -145,9 +147,19 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Changed
 
-- CI grows three gates: `pnpm version:check` before the build, `pnpm smoke` after it, and a
-  container job that runs the built image, compares its reported version with the repository, and
-  asserts it does not run as root. Documentation is uploaded as a build artifact.
+- CI grows four gates: `pnpm version:check` before the build, `pnpm smoke` after it, a container job
+  that runs the image and asserts its version, privileges and that every plugin activated, and a
+  manifests job that runs `docker compose config` plus `kubeconform` over `deploy/k8s`. Documentation
+  is uploaded as a build artifact.
+
+### Fixed
+
+- The container shipped broken plugins. Plugin bundles externalized `@kestrel/agent`, but the image
+  copies `plugins/**` without the workspace packages, so `quota`, `provider-openai` and
+  `provider-anthropic` failed to load while health still reported success. Bundles now inline
+  `@kestrel/*` through `tsup.plugin.config.ts`, runtime helpers moved to the narrow
+  `@kestrel/agent/errors` entry (importing the package root pulled `node:sqlite` into every plugin),
+  and the image drops plugin sources and `node_modules`.
 
 - Browser pages are session-scoped: each session gets its own browser process, cookies and refs,
   created lazily and evicted after `idleMs` (15 minutes by default). Other plugins call

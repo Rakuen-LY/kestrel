@@ -1,4 +1,5 @@
-import { SessionGuardError, type SessionManager } from "@kestrel/agent";
+import type { SessionManager } from "@kestrel/agent";
+import { SessionGuardError } from "@kestrel/agent/errors";
 import type { Context } from "@kestrel/kernel";
 import type { HttpRouteService, SessionEvent } from "@kestrel/protocol";
 

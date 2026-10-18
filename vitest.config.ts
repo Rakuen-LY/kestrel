@@ -8,6 +8,7 @@ export default defineConfig({
     alias: [
       { find: "@kestrel/kernel", replacement: r("./packages/kernel/src/index.ts") },
       { find: "@kestrel/protocol", replacement: r("./packages/protocol/src/index.ts") },
+      { find: "@kestrel/agent/errors", replacement: r("./packages/agent/src/errors.ts") },
       { find: "@kestrel/agent", replacement: r("./packages/agent/src/index.ts") },
       { find: "@kestrel/plugin-host", replacement: r("./packages/plugin-host/src/index.ts") },
       { find: /^@kestrel\/plugin-(.+)$/, replacement: `${r("./plugins")}/$1/src/index.ts` },

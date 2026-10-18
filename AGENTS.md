@@ -166,6 +166,10 @@ never contains agent logic.
   and `AgentSession.callModel` retries only errors marked retryable. A retry is skipped once any
   delta has been forwarded, so clients never see duplicated text. Backoff is equal-jitter
   exponential; `Retry-After` wins but is capped by `maxDelayMs`. Retries surface as `notice` events.
+- Plugins are bundled standalone: `tsup.plugin.config.ts` inlines `@kestrel/*` (the container
+  copies `plugins/**` without workspace packages or root `node_modules`). Runtime helpers come from
+  the narrow `@kestrel/agent/errors` entry; importing the package root would pull `node:sqlite` into
+  every plugin. `pnpm smoke` imports each bundle from an empty directory to enforce this.
 - Plugins resolve `@kestrel/agent` through its `dist` exports map, not `src`. After adding or
   renaming anything exported from a package, rebuild that package (`pnpm build`) before smoke
   testing plugins, or module linking fails with "does not provide an export named ...".

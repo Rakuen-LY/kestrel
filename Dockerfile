@@ -15,6 +15,11 @@ RUN pnpm --filter @kestrel/server... build
 RUN pnpm --filter "./plugins/**" build
 RUN pnpm --filter @kestrel/web build
 
+# Plugin bundles inline their workspace imports (tsup.plugin.config.ts), so the
+# runtime image needs neither sources nor per-plugin node_modules.
+RUN find plugins -type d -name node_modules -prune -exec rm -rf {} + \
+  && find plugins -mindepth 2 -maxdepth 2 \( -name src -o -name test -o -name tsconfig.json \) -prune -exec rm -rf {} +
+
 # ---- runtime ---------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
 
