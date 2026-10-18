@@ -6,6 +6,8 @@ All notable changes to Kestrel are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-18
+
 ### Added
 
 - Published and signed container images. A `v*` tag now produces
@@ -24,6 +26,7 @@ All notable changes to Kestrel are documented here. The format follows
   deployment no longer starts with a local build. `docker compose up -d --build` still builds a
   checkout, and `KESTREL_IMAGE` pins another tag or digest.
 - README carries CI, docs and licence badges and links the live documentation site.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added

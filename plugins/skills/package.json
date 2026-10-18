@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/plugin-skills",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "private": true,
   "description": "Discovers workspace skills and exposes them through the prompt pipeline and a use_skill tool.",

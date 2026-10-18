@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/plugin-audit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "private": true,
   "description": "Append-only JSONL audit trail for tool calls, runs and approvals.",

@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/plugin-subagents",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "private": true,
   "description": "Delegation plugin: scoped subagent sessions with isolated context, roles and bounded depth.",

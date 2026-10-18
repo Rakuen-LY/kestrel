@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/protocol",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Shared wire protocol types for Kestrel clients and servers.",
   "license": "MIT",

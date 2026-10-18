@@ -3,4 +3,4 @@
  * CLI. `pnpm version:set` rewrites this constant together with every workspace
  * `package.json`, and the version test fails if they ever disagree.
  */
-export const KESTREL_VERSION = "0.2.0";
+export const KESTREL_VERSION = "0.2.1";

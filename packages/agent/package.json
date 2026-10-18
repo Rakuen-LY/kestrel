@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Agent loop, model and tool registries, sessions and persistence.",
   "license": "MIT",

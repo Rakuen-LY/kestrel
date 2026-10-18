@@ -1,6 +1,6 @@
 {
   "name": "@kestrel/plugin-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "private": true,
   "description": "Connect Model Context Protocol servers and expose their tools to the agent.",

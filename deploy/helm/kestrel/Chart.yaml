@@ -4,8 +4,8 @@ description: A plugin-first agent platform. Run agents anywhere, drive them from
 type: application
 
 # Chart version tracks the image, so `helm search` and a running pod agree.
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.2.1
+appVersion: "0.2.1"
 
 home: https://rakuen-ly.github.io/kestrel/
 sources:
