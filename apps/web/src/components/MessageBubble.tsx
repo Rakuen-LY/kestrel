@@ -3,7 +3,7 @@ import type { ChatMessage, ToolCall, ToolResult } from "@kestrel/protocol";
 import { imageSrc } from "../images.js";
 import { Markdown } from "./Markdown.js";
 import { ToolCallCard } from "./ToolCall.js";
-import { CheckIcon, ChevronIcon, CopyIcon } from "./icons.js";
+import { CheckIcon, ChevronIcon, CopyIcon, HistoryIcon } from "./icons.js";
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -17,11 +17,15 @@ export function MessageBubble({
   calls = [],
   results = {},
   streaming,
+  onRewind,
+  rewindDisabled,
 }: {
   message: ChatMessage;
   calls?: ToolCall[];
   results?: Record<string, ToolResult>;
   streaming?: boolean;
+  onRewind?: () => void;
+  rewindDisabled?: boolean;
 }) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -55,6 +59,22 @@ export function MessageBubble({
           >
             {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
           </button>
+          {message.role === "user" && onRewind && (
+            <button
+              type="button"
+              className="icon-button subtle"
+              disabled={rewindDisabled}
+              onClick={() => {
+                if (window.confirm("Rewind to before this message? Later messages and file changes will be discarded.")) {
+                  onRewind();
+                }
+              }}
+              aria-label="Rewind to before this message"
+              title="Rewind to before this message"
+            >
+              <HistoryIcon size={14} />
+            </button>
+          )}
         </header>
         {message.reasoning && (
           <div className="reasoning">

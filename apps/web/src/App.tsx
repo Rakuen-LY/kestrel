@@ -247,6 +247,8 @@ export default function App() {
                   message={message}
                   calls={message.toolCalls}
                   results={state.toolRuns}
+                  onRewind={() => actions.rewind(message.id)}
+                  rewindDisabled={state.busy}
                 />
               ))}
 

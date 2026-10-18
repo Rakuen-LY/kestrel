@@ -8,6 +8,11 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Transcript rewind: `POST /api/sessions/:id/rewind` drops a user message and everything after it,
+  then restores the checkpoint taken just before that message. `session.rewound` carries the
+  surviving transcript; the console adds a rewind button on user messages and the CLI a
+  `kestrel sessions rewind` command. Snapshots now record the `messageId` they precede.
+
 - Retry policy for transient model failures: adapters classify errors as retryable, the runtime
   retries with jittered exponential backoff, honours `Retry-After`, never replays streamed output
   and announces each retry as a `notice`. Configure with `agent.retry`.

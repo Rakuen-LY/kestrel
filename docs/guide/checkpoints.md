@@ -4,8 +4,10 @@ An agent that edits files is only as useful as your ability to undo it. Kestrel 
 workspace before every turn, so a bad refactor costs one click instead of a stash, a `git reflog`
 archaeology session or a restored backup.
 
-Checkpoints are workspace-level, not transcript-level: a rewind restores files. Conversations are
-never rewritten, and the transcript keeps the full record of what the agent tried.
+Checkpoints started as workspace-only: restoring files never touched the transcript. The rewind API
+below adds the transcript half, so a turn can be undone end to end and sent again with a better
+prompt. The two remain separable: restoring a checkpoint alone still leaves the conversation
+intact, and rewinding a message can leave files untouched with `restoreFiles: false`.
 
 ```
 data/
@@ -58,6 +60,41 @@ snapshot for the same turn, so a separate snapshot would only add noise.
 
 If git is unavailable, snapshots are skipped and logged. A run never fails because a checkpoint
 could not be taken.
+
+## Rewinding a turn
+
+`POST /api/sessions/:id/rewind` undoes a user turn:
+
+```json
+{ "messageId": "…", "restoreFiles": true }
+```
+
+The target must be a user message, and the session must not be running. Kestrel drops that message
+and everything after it, then restores the snapshot whose `messageId` matches. Because the
+snapshot is taken before the message is appended, the workspace returns to exactly what the user
+saw when they typed it. The response returns the surviving transcript and the restored checkpoint:
+
+```json
+{
+  "messageId": "…",
+  "removed": 4,
+  "messages": [{ "id": "…", "role": "user", "content": "…" }],
+  "restored": { "id": "cp_…", "label": "Before: refactor auth", "messageId": "…" },
+  "safety": { "id": "cp_…" },
+  "warning": null
+}
+```
+
+`restored` is `null` when no snapshot is linked to the message (checkpoints disabled, git missing,
+or a session restored from an older store). The transcript is still rewound and `warning` explains
+why files were left alone. File restoration happens after truncation; a restore failure does not
+roll the transcript back, so `warning` is authoritative.
+
+Clients receive `session.rewound` with the full surviving message list and should replace local
+state rather than removing messages one by one. The console exposes this as a ↺ button on user
+messages; the CLI as `kestrel sessions rewind <id> <messageId>`.
+
+Usage counters are not decremented: tokens were spent, even if the turn is discarded.
 
 ## Restoring
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin, stdout } from "node:process";
 import { parseArgs } from "node:util";
@@ -25,7 +26,7 @@ Usage:
   kestrel chat [--model M] [--workspace DIR]
   kestrel plugins
   kestrel models
-  kestrel sessions [resume <id>]
+  kestrel sessions [resume <id>] [rewind <id> <messageId>]
   kestrel skills [show <name>]
   kestrel checkpoints [list <session>] [create <session> [--label L]]
                       [restore <session> <checkpoint>]
@@ -339,7 +340,8 @@ async function main(): Promise<void> {
           if (text) stdout.write(text);
         });
         try {
-          await snapshotBefore(runtime, session, "Resume interrupted run");
+          const lastUser = session.messages.filter((message) => message.role === "user").at(-1);
+          await snapshotBefore(runtime, session, "Resume interrupted run", lastUser?.id ?? randomUUID());
           await session.resume().done;
           stdout.write("\n");
         } catch (error) {
@@ -348,6 +350,51 @@ async function main(): Promise<void> {
         } finally {
           unsubscribe();
         }
+        return;
+      }
+      if (positionals[1] === "rewind") {
+        const id = positionals[2];
+        const messageId = positionals[3];
+        if (!id || !messageId) {
+          stdout.write("Usage: kestrel sessions rewind <id> <messageId>\n");
+          process.exitCode = 2;
+          return;
+        }
+        if (!runtime.sessions.has(id)) {
+          stdout.write(color.red(`Unknown session ${id}.\n`));
+          process.exitCode = 1;
+          return;
+        }
+        const session = runtime.sessions.get(id);
+        const target = session.messages.find((message) => message.id === messageId);
+        if (!target) {
+          stdout.write(color.red(`Unknown message ${messageId}.\n`));
+          process.exitCode = 1;
+          return;
+        }
+        if (target.role !== "user") {
+          stdout.write(color.red("Only user messages can be a rewind target.\n"));
+          process.exitCode = 1;
+          return;
+        }
+        if (session.isRunning) {
+          stdout.write(color.red("Stop the run before rewinding.\n"));
+          process.exitCode = 1;
+          return;
+        }
+        session.rewind(messageId);
+        const checkpoints = await runtime.checkpoints.list(session.workspace);
+        const checkpoint = checkpoints.filter((item) => item.messageId === messageId).at(-1);
+        let suffix = "";
+        if (checkpoint) {
+          try {
+            const result = await runtime.checkpoints.restore(session.workspace, checkpoint.id);
+            suffix = color.dim(` · files restored to "${result.restored.label}"`);
+          } catch (error) {
+            suffix = color.yellow(` · files not restored: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+        stdout.write(`Rewound to before ${messageId}.${suffix}\n`);
         return;
       }
       for (const session of runtime.sessions.list()) {
@@ -452,11 +499,17 @@ function createPrinter(json: boolean): (event: ServerEventEnvelope["event"]) => 
 }
 
 /** Best-effort snapshot; a missing git binary must not block a CLI run. */
-async function snapshotBefore(runtime: Runtime, session: { id: string; workspace: string }, input: string): Promise<void> {
+async function snapshotBefore(
+  runtime: Runtime,
+  session: { id: string; workspace: string },
+  input: string,
+  messageId: string,
+): Promise<void> {
   const label = input.trim().replace(/\s+/g, " ").slice(0, 72);
   try {
     await runtime.checkpoints.snapshot(session.workspace, {
       sessionId: session.id,
+      messageId,
       label: label ? `Before: ${label}` : "Before turn",
     });
   } catch (error) {
@@ -473,9 +526,10 @@ async function runOnce(runtime: Runtime, prompt: string, json: boolean): Promise
     const text = print(event);
     if (text) stdout.write(text);
   });
-  await snapshotBefore(runtime, session, prompt);
+  const messageId = randomUUID();
+  await snapshotBefore(runtime, session, prompt, messageId);
   try {
-    await session.start(prompt).done;
+    await session.start(prompt, { messageId }).done;
   } catch {
     // The failure was already rendered from the `run.failed` event.
     process.exitCode = 1;
@@ -528,9 +582,10 @@ async function chatLoop(runtime: Runtime, rl: ReturnType<typeof createInterface>
       continue;
     }
     stdout.write("\n");
-    await snapshotBefore(runtime, session, trimmed);
+    const messageId = randomUUID();
+    await snapshotBefore(runtime, session, trimmed, messageId);
     try {
-      await session.start(trimmed).done;
+      await session.start(trimmed, { messageId }).done;
     } catch (error) {
       stdout.write(color.red(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
     }

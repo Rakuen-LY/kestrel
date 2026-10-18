@@ -22,6 +22,7 @@ export {
   sleep,
 } from "./retry.js";
 export type { RetryOptions } from "./retry.js";
+export { RewindError, isRewindError } from "./types.js";
 export type { PromptContext, PromptLayer, PromptPipelineOptions } from "./prompts.js";
 export {
   addUsage,

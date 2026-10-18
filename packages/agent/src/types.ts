@@ -139,6 +139,25 @@ export interface AgentSessionOptions {
   retry?: RetryOptions;
 }
 
+export class RewindError extends Error {
+  constructor(
+    readonly code: "session_busy" | "message_not_found" | "invalid_rewind_target",
+    message: string,
+  ) {
+    super(message);
+    this.name = "RewindError";
+  }
+}
+
+export function isRewindError(error: unknown): error is RewindError {
+  if (error instanceof RewindError) return true;
+  return (
+    error instanceof Error &&
+    error.name === "RewindError" &&
+    typeof (error as { code?: unknown }).code === "string"
+  );
+}
+
 /**
  * A synchronous veto over session creation and run launches. Throwing
  * `SessionGuardError` rejects the action and surfaces the message to the

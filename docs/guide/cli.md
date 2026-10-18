@@ -18,6 +18,8 @@ node apps/cli/dist/index.js --help
 | `kestrel plugins` | List discovered plugins with state and errors. |
 | `kestrel models` | List registered models; marks the default. |
 | `kestrel sessions` | List persisted sessions. |
+| `kestrel sessions resume <id>` | Continue an interrupted session. |
+| `kestrel sessions rewind <id> <messageId>` | Drop a user turn, and restore the files it started from. |
 | `kestrel skills [show <name>]` | List workspace skills, or print one body. |
 
 ## Options

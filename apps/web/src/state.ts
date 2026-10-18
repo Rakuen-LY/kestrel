@@ -135,6 +135,19 @@ function applyEvent(state: UiState, event: SessionEvent): UiState {
         detail: state.activeId === event.sessionId ? undefined : state.detail,
       };
     }
+    case "session.rewound": {
+      if (!isActive || !state.detail) return state;
+      return {
+        ...state,
+        detail: { ...state.detail, messages: event.messages },
+        streaming: undefined,
+        runningCalls: {},
+        toolRuns: {},
+        approvals: [],
+        busy: false,
+        error: undefined,
+      };
+    }
     case "run.started":
       return isActive ? { ...state, busy: true, error: undefined } : state;
     case "run.finished":
@@ -195,6 +208,7 @@ export interface KestrelActions {
   cancel(): Promise<void>;
   resume(): Promise<void>;
   remove(id: string): Promise<void>;
+  rewind(messageId: string): Promise<void>;
   rename(id: string, title: string): Promise<void>;
   setModel(model: string): Promise<void>;
   setSystemPrompt(prompt: string): Promise<void>;
@@ -397,6 +411,20 @@ export function useKestrel(): { state: UiState; actions: KestrelActions; api: Ke
         try {
           await api.decideApproval(id, approvalId, { approved });
           dispatch({ type: "event", event: { type: "approval.resolved", sessionId: id, approvalId, approved } });
+        } catch (error) {
+          fail(error);
+        }
+      },
+      async rewind(messageId) {
+        const id = activeRef.current;
+        if (!id) return;
+        try {
+          const result = await api.rewind(id, messageId);
+          dispatch({
+            type: "event",
+            event: { type: "session.rewound", sessionId: id, messageId, messages: result.messages },
+          });
+          if (result.warning) dispatch({ type: "error", error: { message: result.warning } });
         } catch (error) {
           fail(error);
         }

@@ -34,6 +34,7 @@ import type {
   ToolSession,
   Usage,
 } from "./types.js";
+import { RewindError } from "./types.js";
 
 class RunCancelledError extends Error {
   constructor() {
@@ -210,7 +211,10 @@ export class AgentSession {
     this.touch();
   }
 
-  start(input: string, options: { images?: ImageAttachment[] } = {}): { runId: string; done: Promise<RunResult> } {
+  start(
+    input: string,
+    options: { images?: ImageAttachment[]; messageId?: string } = {},
+  ): { runId: string; done: Promise<RunResult> } {
     if (this.activeRun) throw new Error("This session already has an active run.");
     // Check before touching the transcript: a rejected start must leave no
     // orphan user message behind.
@@ -223,11 +227,35 @@ export class AgentSession {
       this._title = titleFromInput(content || images?.[0]?.name || "Image");
     }
 
-    const userMessage = createMessage("user", content, images ? { images } : {});
+    const userMessage = createMessage("user", content, {
+      ...(images ? { images } : {}),
+      ...(options.messageId ? { id: options.messageId } : {}),
+    });
     this.messageList.push(userMessage);
     this.emit({ type: "message.completed", sessionId: this.id, message: { ...userMessage } });
 
     return this.launchRun();
+  }
+
+  /**
+   * Drops a user message and everything after it, so the turn can be sent
+   * again. Files are restored separately through checkpoints: the runtime has
+   * no storage of its own.
+   */
+  rewind(messageId: string): { removed: number; messages: ChatMessage[] } {
+    if (this.activeRun) throw new RewindError("session_busy", "Stop the run before rewinding.");
+    const index = this.messageList.findIndex((message) => message.id === messageId);
+    if (index < 0) throw new RewindError("message_not_found", `Unknown message "${messageId}".`);
+    if (this.messageList[index].role !== "user") {
+      throw new RewindError("invalid_rewind_target", "Only user messages can be a rewind target.");
+    }
+    const removed = this.messageList.splice(index).length;
+    this._updatedAt = new Date().toISOString();
+    this.persist();
+    const messages = this.messageList.map((message) => ({ ...message }));
+    this.emit({ type: "session.rewound", sessionId: this.id, messageId, messages });
+    this.emit({ type: "session.updated", sessionId: this.id, session: this.summary() });
+    return { removed, messages };
   }
 
   /**

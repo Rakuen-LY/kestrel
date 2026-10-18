@@ -1,6 +1,7 @@
 import type {
   ApprovalDecision,
   CheckpointInfo,
+  ChatMessage,
   BootstrapResponse,
   CheckpointListResponse,
   CreateSessionRequest,
@@ -202,6 +203,24 @@ export class KestrelApi {
     return this.request(`/api/sessions/${encodeURIComponent(id)}/messages`, {
       method: "POST",
       body: JSON.stringify(images.length ? { content, images } : { content }),
+    });
+  }
+
+  rewind(
+    sessionId: string,
+    messageId: string,
+    restoreFiles = true,
+  ): Promise<{
+    messageId: string;
+    removed: number;
+    messages: ChatMessage[];
+    restored: CheckpointInfo | null;
+    safety: CheckpointInfo | null;
+    warning?: string;
+  }> {
+    return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/rewind`, {
+      method: "POST",
+      body: JSON.stringify({ messageId, restoreFiles }),
     });
   }
 

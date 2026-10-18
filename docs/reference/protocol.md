@@ -21,6 +21,7 @@ mobile client. The server, console and CLI all use these types.
 | `POST` | `/api/sessions/:id/messages` | `202 { runId }` | Body `SendMessageRequest`; text, images or both. |
 | `POST` | `/api/sessions/:id/cancel` | `200 { cancelled: boolean }` | Idempotent. |
 | `POST` | `/api/sessions/:id/resume` | `202 { runId }` | Continues an `interrupted` or `error` session; `409 not_resumable` otherwise. |
+| `POST` | `/api/sessions/:id/rewind` | `200 { messageId, removed, messages, restored, safety, warning? }` | Drops a user message and its successors, optionally restoring files. `404 message_not_found`, `400 invalid_rewind_target`, `409 session_busy`. |
 | `GET` | `/api/sessions/:id/events` | `200 text/event-stream` | Session-scoped stream. |
 | `POST` | `/api/sessions/:id/approvals/:approvalId` | `200 { resolved: true }` | Body `{ "approved": boolean, "note"?: string }`. |
 | `GET` | `/api/sessions/:id/checkpoints` | `200 CheckpointListResponse` | `enabled`, optional `reason`, `checkpoints[]`. |
@@ -53,6 +54,11 @@ interface ImageAttachment {
 }
 
 interface ApprovalDecision { approved: boolean; note?: string }
+
+interface RewindRequest {
+  messageId: string;        // must name a user message in this session
+  restoreFiles?: boolean;   // default true; false truncates the transcript only
+}
 ```
 
 `POST /api/sessions/:id/messages` returns `409 session_busy` while a run is active. It does not
@@ -191,6 +197,7 @@ type SessionEvent =
   | { type: "tool.finished"; sessionId: string; result: ToolResult }
   | { type: "approval.requested"; sessionId: string; approval: ApprovalRequest }
   | { type: "approval.resolved"; sessionId: string; approvalId: string; approved: boolean }
+  | { type: "session.rewound"; sessionId: string; messageId: string; messages: ChatMessage[] }
   | { type: "session.deleted"; sessionId: string }
   | { type: "plugin.changed"; plugin: PluginInfo }
   | { type: "context.compacted"; sessionId: string; removedMessages: number;

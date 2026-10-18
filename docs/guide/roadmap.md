@@ -83,7 +83,8 @@ See [Plugin UI](/guide/plugin-ui).
   [Images](/guide/models#images). Still missing: image-producing tools and attachments on tool
   results.
 - ~~Checkpoints and rollback for workspace edits~~ — shipped; see [Checkpoints](/guide/checkpoints).
-  Still missing: rewind of the transcript alongside files.
+- ~~Rewind of the transcript alongside files~~ — `POST /api/sessions/:id/rewind` truncates at a
+  user message and restores its snapshot in one call. See [Rewind a turn](/guide/checkpoints#rewinding-a-turn).
 - ~~Background tasks and scheduled runs~~ — webhooks and cron ship in
   `@kestrel/plugin-triggers`; file watchers and background job queues remain.
 

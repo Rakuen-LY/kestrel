@@ -74,7 +74,9 @@ class AgentSession {
   setModel(model: string): void;
   setSystemPrompt(prompt: string): void;
   reset(): void;
-  start(input: string): { runId: string; done: Promise<RunResult> };
+  start(input: string, options?: { images?: ImageAttachment[]; messageId?: string }):
+    { runId: string; done: Promise<RunResult> };
+  rewind(messageId: string): { removed: number; messages: ChatMessage[] };
   cancel(): boolean;
   touch(): void;
   subscribe(listener: (event: SessionEvent) => void): () => void;
@@ -97,6 +99,13 @@ A model or transport failure rejects `done` after emitting `run.failed`; it does
 
 Starting a second run while `isRunning` throws. `cancel()` aborts the signal; the run resolves with
 `status: "cancelled"`.
+
+`rewind()` removes a user message and every message after it, persists the transcript, emits
+`session.rewound` (with the surviving list) and `session.updated`, and returns the count. It refuses
+unknown ids, non-user targets and active runs with `RewindError` (`message_not_found`,
+`invalid_rewind_target`, `session_busy`). It never touches files: the server pairs it with a
+checkpoint restore, keeping the runtime free of storage. `messageId` on `start()` lets a caller take
+a checkpoint under the same id before the message exists.
 
 ## `ModelRegistry`
 

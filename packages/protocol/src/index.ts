@@ -124,6 +124,8 @@ export interface CheckpointInfo {
   label: string;
   createdAt: string;
   sessionId?: string;
+  /** User message this snapshot precedes, when the caller supplied one. */
+  messageId?: string;
   /** Tracked files at the time of the snapshot. */
   files: number;
   changes: { added: number; modified: number; deleted: number };
@@ -234,6 +236,7 @@ export type SessionEvent =
   | { type: "tool.finished"; sessionId: string; result: ToolResult }
   | { type: "approval.requested"; sessionId: string; approval: ApprovalRequest }
   | { type: "approval.resolved"; sessionId: string; approvalId: string; approved: boolean }
+  | { type: "session.rewound"; sessionId: string; messageId: string; messages: ChatMessage[] }
   | { type: "session.deleted"; sessionId: string }
   | { type: "plugin.changed"; plugin: PluginInfo }
   | {

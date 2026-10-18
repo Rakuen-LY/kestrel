@@ -164,3 +164,10 @@ never contains agent logic.
 - Plugins resolve `@kestrel/agent` through its `dist` exports map, not `src`. After adding or
   renaming anything exported from a package, rebuild that package (`pnpm build`) before smoke
   testing plugins, or module linking fails with "does not provide an export named ...".
+- Rewind is split by design: `AgentSession.rewind()` only truncates and persists the transcript,
+  while the HTTP layer restores the checkpoint whose `messageId` matches. `POST /messages` and the
+  CLI generate the user message id before snapshotting and pass it to `start()`, which keeps the
+  two halves linked without guessing from labels or timestamps. Only user messages are valid
+  targets: truncating at a tool result would orphan an assistant `toolCalls` block. Restore happens
+  after truncation, and a restore failure becomes a `warning` in a `200` response instead of
+  rolling back the transcript.

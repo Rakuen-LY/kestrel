@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -7,13 +8,20 @@ import {
   type ApiErrorBody,
   type ApprovalDecision,
   type BootstrapResponse,
+  type CheckpointInfo,
   type CreateSessionRequest,
   type HealthResponse,
   type ImageAttachment,
   type PluginHttpRequest,
   type SendMessageRequest,
 } from "@kestrel/protocol";
-import { addUsage, emptyUsage, isSessionGuardError, SessionNotFoundError } from "@kestrel/agent";
+import {
+  addUsage,
+  emptyUsage,
+  isRewindError,
+  isSessionGuardError,
+  SessionNotFoundError,
+} from "@kestrel/agent";
 import type { AgentSession } from "@kestrel/agent";
 import { AuthError, type Principal } from "./auth.js";
 import { CheckpointError } from "./checkpoints.js";
@@ -318,7 +326,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     throw new HttpError(405, "method_not_allowed", "Checkpoints support GET and POST.");
   }
 
-  const sessionMatch = /^\/api\/sessions\/([^/]+)(?:\/(messages|events|cancel|resume))?$/.exec(url.pathname);
+  const sessionMatch = /^\/api\/sessions\/([^/]+)(?:\/(messages|events|cancel|resume|rewind))?$/.exec(url.pathname);
   if (sessionMatch) {
     const id = decodeURIComponent(sessionMatch[1]);
     const action = sessionMatch[2];
@@ -371,14 +379,64 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       if (!body.content.trim() && images.length === 0) {
         throw new HttpError(400, "invalid_message", "content or images are required.");
       }
-      await snapshotBeforeRun(runtime, session, body.content || `image: ${images[0]?.name ?? images[0]?.mimeType}`);
-      const { runId, done } = session.start(body.content, { images });
+      const messageId = randomUUID();
+      await snapshotBeforeRun(
+        runtime,
+        session,
+        body.content || `image: ${images[0]?.name ?? images[0]?.mimeType}`,
+        messageId,
+      );
+      const { runId, done } = session.start(body.content, { images, messageId });
       done.catch((error: unknown) => {
         runtime.logger.error("run rejected", { sessionId: id, runId, error: String(error) });
       });
       json(res, 202, { runId });
       return;
     }
+    if (action === "rewind" && method === "POST") {
+      if (session.isRunning) throw new HttpError(409, "session_busy", "Stop the run before rewinding.");
+      const body = await readJson<{ messageId?: unknown; restoreFiles?: unknown }>(req, runtime);
+      if (typeof body.messageId !== "string" || !body.messageId) {
+        throw new HttpError(400, "invalid_message_id", "messageId must be a non-empty string.");
+      }
+      if (body.restoreFiles !== undefined && typeof body.restoreFiles !== "boolean") {
+        throw new HttpError(400, "invalid_body", "restoreFiles must be a boolean.");
+      }
+      const target = session.messages.find((message) => message.id === body.messageId);
+      if (!target) throw new HttpError(404, "message_not_found", "Unknown message.");
+      if (target.role !== "user") {
+        throw new HttpError(400, "invalid_rewind_target", "Only user messages can be a rewind target.");
+      }
+
+      const { removed, messages } = session.rewind(body.messageId);
+      let restored: CheckpointInfo | null = null;
+      let safety: CheckpointInfo | null = null;
+      let warning: string | undefined;
+      if (body.restoreFiles !== false) {
+        const checkpoints = await runtime.checkpoints.list(session.workspace);
+        const checkpoint = checkpoints
+          .filter(
+            (item) => item.messageId === body.messageId && (!item.sessionId || item.sessionId === session.id),
+          )
+          .at(-1);
+        if (checkpoint) {
+          try {
+            const result = await runtime.checkpoints.restore(session.workspace, checkpoint.id);
+            restored = result.restored;
+            safety = result.safety;
+          } catch (error) {
+            warning = `The transcript was rewound, but files were not restored: ${
+              error instanceof Error ? error.message : String(error)
+            }`;
+          }
+        } else {
+          warning = "No checkpoint is linked to this message; the workspace was left unchanged.";
+        }
+      }
+      json(res, 200, { messageId: body.messageId, removed, messages, restored, safety, warning });
+      return;
+    }
+
     if (action === "events" && method === "GET") {
       streamEvents(runtime, req, res, url, principal, id);
       return;
@@ -393,7 +451,8 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       if (session.status !== "interrupted" && session.status !== "error") {
         throw new HttpError(409, "not_resumable", "Only interrupted or failed sessions can be resumed.");
       }
-      await snapshotBeforeRun(runtime, session, "Resume interrupted run");
+      const lastUserMessage = session.messages.filter((message) => message.role === "user").at(-1);
+      await snapshotBeforeRun(runtime, session, "Resume interrupted run", lastUserMessage?.id);
       const { runId, done } = session.resume();
       done.catch((error: unknown) => {
         runtime.logger.error("run rejected", { sessionId: id, runId, error: String(error) });
@@ -640,12 +699,18 @@ function normalizeImages(input: unknown): ImageAttachment[] {
   });
 }
 
-async function snapshotBeforeRun(runtime: Runtime, session: AgentSession, content: string): Promise<void> {
+async function snapshotBeforeRun(
+  runtime: Runtime,
+  session: AgentSession,
+  content: string,
+  messageId?: string,
+): Promise<void> {
   if (session.parentId) return;
   const label = content.trim().replace(/\s+/g, " ").slice(0, 72);
   try {
     await runtime.checkpoints.snapshot(session.workspace, {
       sessionId: session.id,
+      messageId,
       label: label ? `Before: ${label}` : "Before turn",
     });
   } catch (error) {
@@ -834,9 +899,15 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
         ? 404
         : isSessionGuardError(error)
           ? 429
-          : error instanceof CheckpointError
-            ? error.status
-            : 500;
+          : isRewindError(error)
+            ? error.code === "message_not_found"
+              ? 404
+              : error.code === "session_busy"
+                ? 409
+                : 400
+            : error instanceof CheckpointError
+              ? error.status
+              : 500;
   const code =
     error instanceof HttpError
       ? error.code
@@ -844,13 +915,16 @@ function handleError(runtime: Runtime, req: IncomingMessage, res: ServerResponse
         ? "session_not_found"
         : isSessionGuardError(error)
           ? error.code
-          : error instanceof CheckpointError
+          : isRewindError(error)
             ? error.code
-            : "internal_error";
+            : error instanceof CheckpointError
+              ? error.code
+              : "internal_error";
   const message =
     error instanceof HttpError ||
     error instanceof SessionNotFoundError ||
     isSessionGuardError(error) ||
+    isRewindError(error) ||
     error instanceof CheckpointError
       ? error.message
       : "The server hit an unexpected error. Check the server logs for details.";

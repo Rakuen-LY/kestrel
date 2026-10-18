@@ -68,7 +68,10 @@ export class CheckpointService {
     return this.readIndex(this.stateDirectory(workspace));
   }
 
-  async snapshot(workspace: string, meta: { label?: string; sessionId?: string } = {}): Promise<CheckpointInfo> {
+  async snapshot(
+    workspace: string,
+    meta: { label?: string; sessionId?: string; messageId?: string } = {},
+  ): Promise<CheckpointInfo> {
     return this.enqueue(workspace, async () => {
       const { enabled, reason } = await this.status();
       if (!enabled) throw new CheckpointError("checkpoints_disabled", reason ?? "Checkpoints are unavailable.", 409);
@@ -85,6 +88,7 @@ export class CheckpointService {
       return this.snapshotUnlocked(workspace, {
         label: meta.label?.trim() || "Snapshot",
         sessionId: meta.sessionId,
+        messageId: meta.messageId,
       });
     });
   }
@@ -124,7 +128,10 @@ export class CheckpointService {
     });
   }
 
-  private async snapshotUnlocked(workspace: string, meta: { label: string; sessionId?: string }) {
+  private async snapshotUnlocked(
+    workspace: string,
+    meta: { label: string; sessionId?: string; messageId?: string },
+  ) {
     const state = await this.ensureRepository(workspace);
     await this.git(workspace, ["add", "-A"]);
     await this.git(workspace, ["commit", "--quiet", "--allow-empty", "-m", meta.label]);
@@ -139,6 +146,7 @@ export class CheckpointService {
       label: meta.label,
       createdAt: new Date().toISOString(),
       sessionId: meta.sessionId,
+      messageId: meta.messageId,
       files,
       changes,
     };
