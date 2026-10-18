@@ -12,7 +12,8 @@ mobile client. The server, console and CLI all use these types.
 | `GET` | `/api/health` | `200 HealthResponse` | Public even when auth is enabled. |
 | `GET` | `/api/bootstrap` | `200 BootstrapResponse` | Models, tools, plugins, feature flags. |
 | `GET` | `/api/config` | `200` sanitized config | No secrets. |
-| `GET` | `/api/plugins` | `200 { plugins: PluginInfo[] }` | |
+| `GET` | `/api/plugins` | `200 { plugins: PluginInfo[] }` | `web.revision` appears while hot reload watches assets. |
+| `GET` | `/api/plugins/events` | `200 text/event-stream` | Plugin asset changes. Frames: `ready`, `plugins.changed`. |
 | `GET` | `/api/sessions` | `200 { sessions: SessionSummary[] }` | Sorted by `updatedAt` descending. |
 | `POST` | `/api/sessions` | `201 { session: SessionDetail }` | Body `CreateSessionRequest`. |
 | `GET` | `/api/sessions/:id` | `200 { session: SessionDetail }` | |
@@ -33,6 +34,21 @@ mobile client. The server, console and CLI all use these types.
 
 Unknown routes return `404`. Wrong methods on a known route return `405` with
 `method_not_allowed`.
+
+`/api/plugins/events` emits a `ready` frame with `{ enabled, plugins }` and then one
+`plugins.changed` frame per save:
+
+```ts
+interface PluginChangeEvent {
+  type: "plugins.changed";
+  plugins: Array<{ id: string; revision: string }>;
+  at: string;
+}
+```
+
+`revision` is a fingerprint of the plugin's `web/` tree. Clients append it to entry and stylesheet
+URLs so a reload cannot be served from the module cache. With `plugins.hotReload` off the stream
+still answers, reports `enabled: false` and stays idle.
 
 Workspace file routes are strictly read-only. Absolute paths and paths that escape the session
 workspace answer `400 invalid_path` or `403 outside_workspace`; symlinks are resolved before the

@@ -92,7 +92,7 @@ export class PluginHost implements PluginService {
           state: "waiting",
           dependencies: [...(explicit.manifest.requires ?? [])],
           source: explicit.source ?? "local",
-          path: explicit.entry,
+          path: directory,
           web,
         },
       });

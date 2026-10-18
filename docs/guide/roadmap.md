@@ -47,7 +47,9 @@ sandboxed iframe with an opaque origin and a proxied API. The remaining work is 
   `composer.actions` can propose a prompt through `context.composer.submit`.
 - ~~File viewer slot~~ — `file.viewer` claims extensions and takes over the preview pane while the
   built-in Source tab stays available.
-- A dev channel that reloads a bundle without a page refresh.
+- ~~A dev channel that reloads a bundle without a page refresh~~ — `plugins.hotReload` fingerprints
+  `web/` and streams changes over `GET /api/plugins/events`; the console remounts only the affected
+  frames and cache-busts entry and stylesheet URLs.
 
 See [Plugin UI](/guide/plugin-ui).
 

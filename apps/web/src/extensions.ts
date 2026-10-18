@@ -100,6 +100,8 @@ export interface LoadedExtension extends ExtensionContribution {
   api?: string[];
   /** Console capabilities from the manifest. */
   capabilities?: string[];
+  /** Asset fingerprint the bundle was loaded with; changes force a remount. */
+  revision?: string;
 }
 
 export interface ExtensionError {
@@ -183,10 +185,16 @@ export function matchesMessage(match: SlotMatch | undefined, message: ChatMessag
  * Runs every active bundle in a sandboxed iframe and records what it registers.
  * Bundles never execute in the console's origin: the iframe has an opaque
  * origin, no access to storage or cookies, and no direct network access.
+ *
+ * `revisions` carries asset fingerprints from the hot-reload channel. A
+ * fingerprint is appended to the module URL so a changed bundle is a different
+ * specifier to the browser's module map, which would otherwise keep serving
+ * the first import for the lifetime of the page.
  */
 export async function loadConsoleExtensions(
   plugins: PluginInfo[],
   api: KestrelApi,
+  revisions: Record<string, string | undefined> = {},
 ): Promise<{ extensions: LoadedExtension[]; errors: ExtensionError[] }> {
   const extensions: LoadedExtension[] = [];
   const errors: ExtensionError[] = [];
@@ -194,9 +202,10 @@ export async function loadConsoleExtensions(
   for (const plugin of plugins) {
     if (plugin.state !== "active" || !plugin.web) continue;
     const identity = { id: plugin.id, name: plugin.name, version: plugin.version };
+    const revision = revisions[plugin.id] ?? plugin.web.revision;
     const base = `${api.endpoint}/plugins/${encodeURIComponent(plugin.id)}/`;
-    const entry = base + plugin.web.entry;
-    const css = (plugin.web.css ?? []).map((href) => base + href);
+    const entry = pluginAssetUrl(base + plugin.web.entry, revision);
+    const css = (plugin.web.css ?? []).map((href) => pluginAssetUrl(base + href, revision));
 
     try {
       const contributions = await discover({
@@ -217,6 +226,7 @@ export async function loadConsoleExtensions(
           css,
           ...(plugin.web.api ? { api: plugin.web.api } : {}),
           ...(plugin.web.capabilities ? { capabilities: plugin.web.capabilities } : {}),
+          ...(revision ? { revision } : {}),
         });
       }
     } catch (error) {
@@ -227,6 +237,12 @@ export async function loadConsoleExtensions(
   }
 
   return { extensions, errors };
+}
+
+/** Appends `?v=<revision>` without disturbing existing query parameters. */
+export function pluginAssetUrl(url: string, revision: string | undefined): string {
+  if (!revision) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(revision)}`;
 }
 
 async function discover(input: DiscoveryInput): Promise<ExtensionContribution[]> {
@@ -355,10 +371,45 @@ export function themeVariables(): Record<string, string> {
   return vars;
 }
 
+/**
+ * Tracks plugin asset fingerprints. The server publishes them on an SSE
+ * channel; when the feature is off the stream connects and stays silent, so
+ * this hook costs one idle connection and returns `{}`.
+ */
+export function usePluginAssetRevisions(api: KestrelApi): Record<string, string> {
+  const [revisions, setRevisions] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    return api.pluginAssets({
+      onReady: (state) => setRevisions(toRevisionMap(state.plugins)),
+      onChanged: (event) =>
+        setRevisions((current) => {
+          const next = { ...current };
+          let changed = false;
+          for (const plugin of event.plugins) {
+            if (next[plugin.id] === plugin.revision) continue;
+            next[plugin.id] = plugin.revision;
+            changed = true;
+          }
+          return changed ? next : current;
+        }),
+    });
+  }, [api]);
+
+  return revisions;
+}
+
+function toRevisionMap(plugins: Array<{ id: string; revision: string }>): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const plugin of plugins) map[plugin.id] = plugin.revision;
+  return map;
+}
+
 /** Loads extensions once per plugin set and exposes them to the app. */
 export function usePluginExtensions(
   bootstrap: BootstrapResponse | undefined,
   api: KestrelApi,
+  revisions: Record<string, string> = {},
 ): { extensions: LoadedExtension[]; errors: ExtensionError[] } {
   const [result, setResult] = useState<{ extensions: LoadedExtension[]; errors: ExtensionError[] }>({
     extensions: [],
@@ -366,20 +417,27 @@ export function usePluginExtensions(
   });
   const loaded = useRef("");
 
-  const key = (bootstrap?.plugins ?? [])
-    .map((plugin) => `${plugin.id}@${plugin.version}:${plugin.state}`)
-    .join("|");
+  const key = [
+    (bootstrap?.plugins ?? [])
+      .map((plugin) => `${plugin.id}@${plugin.version}:${plugin.state}`)
+      .join("|"),
+    Object.entries(revisions)
+      .map(([id, revision]) => `${id}=${revision}`)
+      .sort()
+      .join(","),
+  ].join("#");
 
   useEffect(() => {
     if (!bootstrap || !key || key === loaded.current) return;
     loaded.current = key;
     let cancelled = false;
-    void loadConsoleExtensions(bootstrap.plugins, api).then((loadedResult) => {
+    void loadConsoleExtensions(bootstrap.plugins, api, revisions).then((loadedResult) => {
       if (!cancelled) setResult(loadedResult);
     });
     return () => {
       cancelled = true;
     };
+    // `revisions` is read through `key`, which is stable across renders.
   }, [api, bootstrap, key]);
 
   return result;

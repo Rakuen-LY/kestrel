@@ -11,7 +11,7 @@ import { FileViewer } from "./components/FileViewer.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { ToolCallCard } from "./components/ToolCall.js";
 import { BoltIcon, FilesIcon, HistoryIcon, MenuIcon, PenIcon, SettingsIcon } from "./components/icons.js";
-import { usePluginExtensions } from "./extensions.js";
+import { usePluginAssetRevisions, usePluginExtensions } from "./extensions.js";
 import { useKestrel } from "./state.js";
 import { readToken, writeEndpoint, writeToken } from "./api.js";
 import { formatTokens } from "./format.js";
@@ -96,7 +96,8 @@ export default function App() {
     if (nearBottom || state.busy) element.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [state.busy, state.detail?.messages.length, state.streaming?.content.length, calls.length]);
 
-  const { extensions, errors: extensionErrors } = usePluginExtensions(state.bootstrap, api);
+  const assetRevisions = usePluginAssetRevisions(api);
+  const { extensions, errors: extensionErrors } = usePluginExtensions(state.bootstrap, api, assetRevisions);
   const modelOptions = state.bootstrap?.models ?? [];
   const pluginCount = state.bootstrap?.plugins.length ?? 0;
   const approval = state.approvals[0];

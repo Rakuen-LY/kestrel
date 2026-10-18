@@ -55,7 +55,14 @@ export function PluginSlot({
     <>
       {matching.map((extension) => (
         <PluginFrame
-          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}:${message?.id ?? ""}:${file?.path ?? ""}`}
+          key={[
+            extension.plugin.id,
+            extension.id,
+            extension.revision ?? "",
+            sessionId ?? "",
+            message?.id ?? "",
+            file?.path ?? "",
+          ].join(":")}
           extension={extension}
           api={api}
           sessionId={sessionId}

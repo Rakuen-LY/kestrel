@@ -12,7 +12,9 @@ import {
   type CreateSessionRequest,
   type HealthResponse,
   type ImageAttachment,
+  type PluginChangeEvent,
   type PluginHttpRequest,
+  type PluginInfo,
   type SendMessageRequest,
 } from "@kestrel/protocol";
 import {
@@ -215,7 +217,7 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
       protocol: PROTOCOL_VERSION,
       models: runtime.models.list(),
       tools: runtime.tools.schemas(),
-      plugins: runtime.plugins.list(),
+      plugins: withAssetRevisions(runtime, runtime.plugins.list()),
       features: {
         streaming: true,
         approvals: true,
@@ -251,8 +253,13 @@ async function handle(runtime: Runtime, req: IncomingMessage, res: ServerRespons
     return;
   }
 
+  if (url.pathname === "/api/plugins/events" && method === "GET") {
+    streamPluginAssets(runtime, req, res);
+    return;
+  }
+
   if (url.pathname === "/api/plugins" && method === "GET") {
-    json(res, 200, { plugins: runtime.plugins.list() });
+    json(res, 200, { plugins: withAssetRevisions(runtime, runtime.plugins.list()) });
     return;
   }
 
@@ -564,6 +571,62 @@ function streamEvents(
   };
   req.on("close", cleanup);
   req.on("error", cleanup);
+}
+
+/**
+ * Streams asset fingerprints to console clients. The `ready` frame carries the
+ * current state so a late joiner does not reload every bundle; later frames
+ * carry one changed plugin at a time. With hot reload off the stream is still
+ * valid and simply never emits, which keeps clients from special-casing it.
+ */
+function streamPluginAssets(runtime: Runtime, req: IncomingMessage, res: ServerResponse): void {
+  const watcher = runtime.pluginAssets;
+  res.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache, no-transform",
+    connection: "keep-alive",
+    "x-accel-buffering": "no",
+  });
+  res.write("retry: 3000\n\n");
+  res.write(
+    `event: ready\ndata: ${JSON.stringify({
+      enabled: Boolean(watcher),
+      plugins: watcher?.snapshot() ?? [],
+    })}\n\n`,
+  );
+
+  let closed = false;
+  const unsubscribe = watcher?.subscribe((change) => {
+    if (closed) return;
+    const event: PluginChangeEvent = {
+      type: "plugins.changed",
+      plugins: [change],
+      at: new Date().toISOString(),
+    };
+    res.write(`event: plugins.changed\ndata: ${JSON.stringify(event)}\n\n`);
+  });
+  const heartbeat = setInterval(() => {
+    if (!closed) res.write(": ping\n\n");
+  }, 15_000);
+  heartbeat.unref?.();
+
+  const cleanup = (): void => {
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe?.();
+  };
+  req.on("close", cleanup);
+  req.on("error", cleanup);
+}
+
+/** Adds `web.revision` to plugin descriptors when the watcher is running. */
+function withAssetRevisions(runtime: Runtime, plugins: PluginInfo[]): PluginInfo[] {
+  const watcher = runtime.pluginAssets;
+  if (!watcher) return plugins;
+  return plugins.map((plugin) => {
+    const revision = plugin.web ? watcher.revisionFor(plugin.id) : undefined;
+    return revision && plugin.web ? { ...plugin, web: { ...plugin.web, revision } } : plugin;
+  });
 }
 
 async function serveStatic(

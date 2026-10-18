@@ -17,6 +17,7 @@ import { loadConfig, resolveDataDirectory, resolveWorkspace, type KestrelConfig 
 import { createAuthService, tenantWorkspace, type AuthService } from "./auth.js";
 import { CheckpointService } from "./checkpoints.js";
 import { PluginHttpRouter } from "./plugin-http.js";
+import { PluginAssetWatcher } from "./plugin-assets.js";
 import { EventHub } from "./events.js";
 
 export class ApprovalBroker {
@@ -92,6 +93,8 @@ export interface Runtime {
   auth: AuthService;
   checkpoints: CheckpointService;
   httpRoutes: PluginHttpRouter;
+  /** Present only when `plugins.hotReload` is on; decorates plugin assets. */
+  pluginAssets?: PluginAssetWatcher;
   /** Root directory a tenant's sessions may use by default. */
   workspaceFor(tenantId: string): string;
   pluginInfos: PluginInfo[];
@@ -197,6 +200,16 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     models.setDefault(config.model.default);
   }
 
+  const pluginAssets = config.plugins.hotReload
+    ? new PluginAssetWatcher({
+        plugins: () => host.list(),
+        logger: logger.child({ component: "plugin-assets" }),
+        intervalMs: config.plugins.hotReloadIntervalMs,
+      })
+    : undefined;
+  await pluginAssets?.scan();
+  pluginAssets?.start();
+
   const runtime: Runtime = {
     config,
     context,
@@ -210,10 +223,12 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     auth,
     checkpoints,
     httpRoutes,
+    ...(pluginAssets ? { pluginAssets } : {}),
     workspaceFor: (tenantId) => tenantWorkspace(config, dataDirectory, tenantId, workspace),
     pluginInfos,
     startedAt: Date.now(),
     async shutdown() {
+      pluginAssets?.stop();
       approvals.close();
       await sessions.close();
       await host.dispose();
@@ -229,6 +244,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     models: models.list().map((model) => model.id),
     tools: tools.size,
     plugins: pluginInfos.filter((plugin) => plugin.state === "active").length,
+    hotReload: config.plugins.hotReload === true,
   });
   return runtime;
 }

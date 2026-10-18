@@ -243,6 +243,12 @@ export interface PluginWeb {
    * `context.composer` is absent even in the composer slot.
    */
   capabilities?: Array<"composer.submit">;
+  /**
+   * Opaque fingerprint of the files under `web/`, present only while the
+   * server watches plugin assets. Clients append it to asset URLs so a reload
+   * cannot be served from the module cache.
+   */
+  revision?: string;
 }
 
 export interface PluginInfo {
@@ -257,6 +263,27 @@ export interface PluginInfo {
   path?: string;
   /** Browser contribution, with paths relative to the plugin's `web/` directory. */
   web?: PluginWeb;
+}
+
+/**
+ * One plugin whose browser assets changed on disk. Emitted on
+ * `GET /api/plugins/events` when the server watches plugin directories.
+ */
+export interface PluginAssetChange {
+  id: string;
+  /** New asset fingerprint; equal to `PluginWeb.revision`. */
+  revision: string;
+}
+
+/**
+ * Payload of the `plugins.changed` server-sent event. Only plugins whose
+ * `web/` contents changed since the previous scan appear, so a client can
+ * reload one bundle instead of rediscovering everything.
+ */
+export interface PluginChangeEvent {
+  type: "plugins.changed";
+  plugins: PluginAssetChange[];
+  at: string;
 }
 
 export type SessionEvent =

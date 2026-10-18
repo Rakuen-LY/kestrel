@@ -7,6 +7,8 @@ import type {
   CreateSessionRequest,
   HealthResponse,
   ImageAttachment,
+  PluginAssetChange,
+  PluginChangeEvent,
   PluginInfo,
   ServerEventEnvelope,
   SessionDetail,
@@ -275,6 +277,37 @@ export class KestrelApi {
     source.onerror = () => {
       handlers.onStatus(opened ? "offline" : "connecting");
     };
+    return () => source.close();
+  }
+
+  /**
+   * Subscribes to plugin asset changes. The `ready` frame reports the current
+   * fingerprints, so a client that connects after editing a file still learns
+   * the revision it should load. Returns a closer plus the enabled flag
+   * reported by the server.
+   */
+  pluginAssets(handlers: {
+    onReady(state: { enabled: boolean; plugins: PluginAssetChange[] }): void;
+    onChanged(event: PluginChangeEvent): void;
+  }): () => void {
+    const query = new URLSearchParams();
+    if (this.token) query.set("token", this.token);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const source = new EventSource(`${this.base}/api/plugins/events${suffix}`);
+    source.addEventListener("ready", (message) => {
+      try {
+        handlers.onReady(JSON.parse((message as MessageEvent).data) as { enabled: boolean; plugins: PluginAssetChange[] });
+      } catch {
+        handlers.onReady({ enabled: false, plugins: [] });
+      }
+    });
+    source.addEventListener("plugins.changed", (message) => {
+      try {
+        handlers.onChanged(JSON.parse((message as MessageEvent).data) as PluginChangeEvent);
+      } catch {
+        // A malformed frame is dropped; the next save produces another one.
+      }
+    });
     return () => source.close();
   }
 }

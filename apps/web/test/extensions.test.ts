@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, WorkspaceFile } from "@kestrel/protocol";
-import { fileExtension, filePayload, matchesFile, matchesMessage, messagePayload } from "../src/extensions.js";
+import {
+  fileExtension,
+  filePayload,
+  matchesFile,
+  matchesMessage,
+  messagePayload,
+  pluginAssetUrl,
+} from "../src/extensions.js";
 
 function message(extra: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -107,5 +114,22 @@ describe("file payload", () => {
     const payload = filePayload({ ...base, content: "x".repeat(600_000) });
     expect(payload.content).toHaveLength(512_000);
     expect(payload.truncated).toBe(true);
+  });
+});
+
+describe("plugin asset urls", () => {
+  it("leaves the url alone without a revision", () => {
+    expect(pluginAssetUrl("https://host/plugins/p/panel.js", undefined)).toBe(
+      "https://host/plugins/p/panel.js",
+    );
+  });
+
+  it("adds the fingerprint as a query parameter", () => {
+    expect(pluginAssetUrl("https://host/plugins/p/panel.js", "abc123")).toBe(
+      "https://host/plugins/p/panel.js?v=abc123",
+    );
+    expect(pluginAssetUrl("https://host/plugins/p/panel.css?theme=dark", "abc123")).toBe(
+      "https://host/plugins/p/panel.css?theme=dark&v=abc123",
+    );
   });
 });

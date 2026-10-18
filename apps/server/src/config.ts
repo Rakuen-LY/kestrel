@@ -47,6 +47,14 @@ export interface PluginsConfig {
   directories?: string[];
   allow?: string[];
   config?: Record<string, Record<string, unknown>>;
+  /**
+   * Watch `web/` directories and stream `plugins.changed` events so the console
+   * can reload a bundle without a page refresh. Env: KESTREL_HOT_RELOAD.
+   * Off by default: the polling cost and the reload are development conveniences.
+   */
+  hotReload?: boolean;
+  /** Milliseconds between asset scans while `hotReload` is on. Default 1000. */
+  hotReloadIntervalMs?: number;
 }
 
 export interface StorageConfig {
@@ -148,6 +156,9 @@ function parseSwitch(value: string | undefined): boolean | "auto" | undefined {
 function applyEnvironment(config: KestrelConfig): KestrelConfig {
   const env = process.env;
   const plugins = env.KESTREL_PLUGINS?.split(",").map((entry) => entry.trim()).filter(Boolean);
+  const hotReloadSwitch = parseSwitch(env.KESTREL_HOT_RELOAD);
+  const hotReload =
+    hotReloadSwitch === undefined || hotReloadSwitch === "auto" ? config.plugins.hotReload : hotReloadSwitch;
   return {
     ...config,
     server: {
@@ -168,7 +179,14 @@ function applyEnvironment(config: KestrelConfig): KestrelConfig {
       workspace: env.KESTREL_WORKSPACE ?? config.agent.workspace,
       systemPrompt: env.KESTREL_SYSTEM_PROMPT ?? config.agent.systemPrompt,
     },
-    plugins: { ...config.plugins, directories: plugins ?? config.plugins.directories },
+    plugins: {
+      ...config.plugins,
+      directories: plugins ?? config.plugins.directories,
+      hotReload,
+      hotReloadIntervalMs: env.KESTREL_HOT_RELOAD_INTERVAL_MS
+        ? Number(env.KESTREL_HOT_RELOAD_INTERVAL_MS)
+        : config.plugins.hotReloadIntervalMs,
+    },
     storage: {
       ...config.storage,
       directory: env.KESTREL_DATA_DIR ?? config.storage.directory,

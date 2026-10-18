@@ -106,6 +106,8 @@ prompt always states the active workspace and tool list.
 | `directories` | string[] | `["plugins"]` | Scan roots, relative to the working directory. |
 | `allow` | string[] | — | Exact allow-list of manifest names. |
 | `config` | object | `{}` | Per-plugin configuration keyed by manifest name. |
+| `hotReload` | boolean | `false` | Watch plugin `web/` assets and stream changes to the console. |
+| `hotReloadIntervalMs` | number | `1000` | Milliseconds between asset scans; values below 250 are clamped. |
 
 `applyTimeoutMs` is a `PluginHost` option, not a config-file key; the server uses the host default
 of 20 seconds.
@@ -177,6 +179,8 @@ Snapshots live in `<storage.directory>/checkpoints` as a shadow git repository p
 | `KESTREL_WORKSPACE` | `agent.workspace` | `/workspace` |
 | `KESTREL_SYSTEM_PROMPT` | `agent.systemPrompt` | `Be terse.` |
 | `KESTREL_PLUGINS` | `plugins.directories` | `plugins,examples/plugins` |
+| `KESTREL_HOT_RELOAD` | `plugins.hotReload` | `false` |
+| `KESTREL_HOT_RELOAD_INTERVAL_MS` | `plugins.hotReloadIntervalMs` | `1000` |
 | `KESTREL_DATA_DIR` | `storage.directory` | `/data` |
 | `KESTREL_STORAGE_DRIVER` | `storage.driver` | `sqlite` |
 | `KESTREL_CHECKPOINTS` | `checkpoints.enabled` | `auto` |

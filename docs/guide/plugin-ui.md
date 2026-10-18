@@ -244,8 +244,43 @@ symlink that escapes it, answers `400`, `403` or `404`, never its contents.
 
 A bundle that registers nothing, times out during discovery (five seconds) or throws is reported
 once and does not affect other plugins. Registrations carry `match` metadata during discovery, so
-filtering happens before any iframe is created. Reloading the page reloads bundles; there is no
-hot-reload channel yet.
+filtering happens before any iframe is created.
+
+## Hot reload while developing
+
+Editing a bundle normally needs a full page reload because the browser caches ES modules per
+document. With `plugins.hotReload` enabled the server fingerprints every active plugin's `web/`
+directory once a second and streams the changed plugins to the console, which re-discovers that
+bundle and remounts its frames in place.
+
+```bash
+KESTREL_HOT_RELOAD=1 pnpm dev
+```
+
+Or in `kestrel.config.json`:
+
+```json
+{ "plugins": { "hotReload": true, "hotReloadIntervalMs": 1000 } }
+```
+
+How it behaves:
+
+- Only `web/` is watched. Edits to `kestrel.plugin.json` (entry path, CSS list, API grants,
+  capabilities) still require a server restart, because applying them silently would let a file
+  change widen a bundle's authority.
+- Server-side code is not reloaded; restart the server for that.
+- A revision is appended to the entry and stylesheet URLs (`?v=<fingerprint>`), so a remounted
+  iframe cannot reuse the previous module or stylesheet.
+- The console subscribes to `GET /api/plugins/events` and applies the `ready` snapshot, so a
+  console opened after an edit starts with current fingerprints.
+- Reloads are scoped: only the frames of the changed plugin remount, and their state is lost.
+  Persist anything worth keeping through your plugin's own API.
+- The feature is off by default. With it off, the stream still connects and reports
+  `enabled: false`, and no scanning happens.
+
+Polling is intentional: `fs.watch` does not cross bind mounts on Docker Desktop for macOS and
+Windows, which is exactly where plugin authors edit files. A stat sweep over a few small
+directories is cheap; use `hotReloadIntervalMs` if a tree is unusually large.
 
 ## Trust boundary
 

@@ -8,6 +8,12 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Plugin asset hot reload for development. `plugins.hotReload` (env `KESTREL_HOT_RELOAD`) makes the
+  server fingerprint every active plugin's `web/` tree and stream changes over
+  `GET /api/plugins/events`; `PluginWeb.revision` and the console then cache-bust entry and
+  stylesheet URLs and remount only the affected frames. Polling (default 1 s) is used instead of
+  `fs.watch` because inotify does not cross bind mounts on Docker Desktop. Manifest edits still
+  require a restart: silently applying new grants would widen a bundle's authority.
 - Workspace file browser in the console (`apps/web/src/components/FileViewer.tsx`) and the read-only
   `GET /api/sessions/:id/files` and `/file` routes. Listings are directories-first and hide ignored
   paths; text arrives UTF-8 with line counts and a truncation flag, images and binaries base64.
