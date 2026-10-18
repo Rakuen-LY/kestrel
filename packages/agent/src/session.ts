@@ -10,6 +10,7 @@ import type {
   ToolResult,
   ToolSchema,
 } from "@kestrel/protocol";
+import { sanitizeImages } from "./images.js";
 import { formatValidationIssues, validateArguments } from "./registry.js";
 import { DEFAULT_RETRY, isModelRequestError, retryDelay, sleep, type RetryOptions } from "./retry.js";
 import {
@@ -407,7 +408,10 @@ export class AgentSession {
         for (const call of response.toolCalls) {
           this.throwIfCancelled(controller.signal);
           const { result, terminate } = await this.executeTool(call, controller.signal);
-          const message = toolMessage(call, result.content);
+          const message = toolMessage(call, result.content, {
+            images: result.images,
+            isError: !result.ok,
+          });
           this.messageList.push(message);
           this._updatedAt = new Date().toISOString();
           this.persist();
@@ -527,7 +531,9 @@ export class AgentSession {
 
     try {
       const result = await tool.execute(call.arguments, context);
-      const content = truncateToolOutput(result.content);
+      const pictures = sanitizeImages(result.images);
+      const note = pictures.omitted.length ? `\n\n[images omitted: ${pictures.omitted.join("; ")}]` : "";
+      const content = truncateToolOutput(`${result.content}${note}`);
       return finish(
         {
           callId: call.id,
@@ -536,6 +542,7 @@ export class AgentSession {
           content,
           error: result.isError ? content : undefined,
           data: result.data,
+          images: pictures.images.length ? pictures.images : undefined,
         },
         result.terminate ?? false,
       );

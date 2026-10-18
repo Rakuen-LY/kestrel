@@ -45,6 +45,8 @@ export interface ToolResult {
   content: string;
   durationMs?: number;
   error?: string;
+  /** Images the tool produced; shown in clients and sent back to vision models. */
+  images?: ImageAttachment[];
   /** Structured payload for rich clients; never sent to the model. */
   data?: unknown;
 }
@@ -52,7 +54,7 @@ export interface ToolResult {
 export type MessageRole = "system" | "user" | "assistant" | "tool";
 
 /**
- * An image attached to a user message. `data` is base64 without the
+ * An image attached to a user or tool message. `data` is base64 without the
  * `data:` URL prefix; clients use `mimeType` to rebuild it.
  */
 export interface ImageAttachment {
@@ -65,13 +67,15 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  /** Images the user attached; only user messages carry them today. */
+  /** Images attached to the message; produced by the user or by a tool. */
   images?: ImageAttachment[];
   /** Provider-native reasoning trace, when the model exposes one. */
   reasoning?: string;
   toolCalls?: ToolCall[];
   toolCallId?: string;
   toolName?: string;
+  /** For tool messages: whether the call failed, preserved across reloads. */
+  isError?: boolean;
   createdAt: string;
   /** Model that produced an assistant message, for provenance in clients. */
   model?: string;

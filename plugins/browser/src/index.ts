@@ -9,7 +9,15 @@ import {
   type BrowserSnapshot,
 } from "./browser.js";
 
-export type { BrowserElement, BrowserOptions, BrowserPage, BrowserService, BrowserSnapshot } from "./browser.js";
+export type {
+  BrowserElement,
+  BrowserOptions,
+  BrowserPage,
+  BrowserScreenshot,
+  BrowserService,
+  BrowserSnapshot,
+  ScreenshotOptions,
+} from "./browser.js";
 export { BrowserController, BrowserPool, findBrowser, formatSnapshot, resolveScreenshotPath } from "./browser.js";
 
 export interface BrowserConfig extends BrowserOptions {
@@ -133,6 +141,28 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
     },
     {
       schema: {
+        name: "browser_wait_for",
+        description:
+          "Wait until the page contains specific text or matches a CSS selector, then return a snapshot. Use this instead of guessing how long a single-page app needs to render.",
+        category: "browser",
+        permission: "auto",
+        parameters: schema({
+          text: { type: "string", description: "Substring of visible body text." },
+          selector: { type: "string", description: "CSS selector that must exist." },
+          timeoutMs: { type: "integer", description: "Maximum wait, default 10000." },
+        }),
+      },
+      async execute(args, toolContext) {
+        const text = typeof args.text === "string" && args.text ? args.text : undefined;
+        const selector = typeof args.selector === "string" && args.selector ? args.selector : undefined;
+        if (!text && !selector) throw new Error("Provide `text` or `selector` to wait for.");
+        const timeoutMs =
+          typeof args.timeoutMs === "number" ? Math.min(60_000, Math.max(100, Math.floor(args.timeoutMs))) : undefined;
+        return result(await page(service, toolContext).waitFor({ text, selector, timeoutMs }));
+      },
+    },
+    {
+      schema: {
         name: "browser_back",
         description: "Go back in browser history and return a fresh snapshot.",
         category: "browser",
@@ -147,24 +177,56 @@ export function createBrowserTools(service: BrowserService, permission: "ask" | 
       schema: {
         name: "browser_screenshot",
         description:
-          "Save a PNG screenshot of the visible page inside the workspace. Useful for visual checks; the image itself is not returned to the model.",
+          "Save a screenshot of the visible page inside the workspace. Set include_image to return it to you as an image; that requires a vision model.",
         category: "browser",
         permission: "auto",
         parameters: schema({
           path: {
             type: "string",
-            description: "Workspace-relative path, default screenshots/browser-<timestamp>.png.",
+            description: "Workspace-relative path; the extension defaults to the chosen format.",
+          },
+          include_image: {
+            type: "boolean",
+            description: "Return the image itself so you can inspect it. Default false, because it costs tokens.",
+          },
+          format: {
+            type: "string",
+            enum: ["png", "jpeg"],
+            description: "Image format, default png.",
+          },
+          quality: {
+            type: "integer",
+            description: "JPEG quality from 1 to 100, default 80. Ignored for PNG.",
           },
         }),
       },
       async execute(args, toolContext) {
+        const format = args.format === "jpeg" ? "jpeg" : "png";
+        const includeImage = args.include_image === true;
         const shot = await page(service, toolContext).screenshot(
           toolContext.session.workspace,
           typeof args.path === "string" && args.path.trim() ? args.path.trim() : undefined,
+          {
+            format,
+            quality: typeof args.quality === "number" ? args.quality : undefined,
+            includeData: includeImage,
+          },
         );
+        const note = includeImage ? " The image is attached to this result." : "";
         return {
-          content: `Saved screenshot to ${shot.path} (${shot.bytes} bytes).`,
-          data: shot,
+          content: `Saved screenshot to ${shot.path} (${shot.bytes} bytes).${note}`,
+          data: { path: shot.path, bytes: shot.bytes, mimeType: shot.mimeType },
+          ...(includeImage && shot.data
+            ? {
+                images: [
+                  {
+                    mimeType: shot.mimeType,
+                    data: shot.data,
+                    name: shot.path.split(/[\\/]/).pop(),
+                  },
+                ],
+              }
+            : {}),
         };
       },
     },

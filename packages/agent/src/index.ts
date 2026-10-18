@@ -57,6 +57,7 @@ export type {
 export type {
   ApprovalRequest,
   ChatMessage,
+  ImageAttachment,
   JsonSchema,
   MessageRole,
   ModelInfo,

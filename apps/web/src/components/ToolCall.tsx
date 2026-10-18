@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ToolCall, ToolResult } from "@kestrel/protocol";
+import { imageSrc } from "../images.js";
 import { ChevronIcon, TerminalIcon } from "./icons.js";
 
 function summarize(call: ToolCall): string {
@@ -58,6 +59,21 @@ export function ToolCallCard({
             <>
               <div className="tool-section-label">result</div>
               <pre className="tool-pre">{output || "(empty)"}</pre>
+              {result.images?.length ? (
+                <div className={`message-images tool-images${result.images.length === 1 ? " single" : ""}`}>
+                  {result.images.map((image, index) => (
+                    <a
+                      key={`${image.mimeType}-${index}`}
+                      href={imageSrc(image)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={image.name ?? "Open image"}
+                    >
+                      <img src={imageSrc(image)} alt={image.name ?? `tool image ${index + 1}`} loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              ) : null}
             </>
           )}
         </div>

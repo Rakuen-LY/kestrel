@@ -272,3 +272,32 @@ Images count against the context window — the estimator charges 1100 tokens ea
 are compacted away with the turns that carried them. Not every model accepts images: a text-only
 endpoint will usually answer `400`. Pick a vision-capable model in the session header when
 attaching them. The CLI has no attachment flags yet; use the HTTP API or the console.
+
+### Images from tools
+
+A tool returns images by setting `images` on its result, and the runtime carries them through the
+transcript, SSE events and the console:
+
+```ts
+return {
+  content: `Saved screenshot to ${path}.`,
+  images: [{ mimeType: "image/png", data: base64, name: "page.png" }],
+};
+```
+
+Clients render the images inside the tool card, including after a reload, because tool messages
+persist them alongside an `isError` flag. All provider adapters send them back to the model:
+
+- Anthropic puts text and images in the same `tool_result` content block.
+- OpenAI-compatible endpoints only accept images in user turns, so tool images are attached to the
+  next user message, or to a synthetic user message when the tool batch ends the history.
+- Messages that carry no images keep their previous wire shape, which is important for endpoints
+  that do not implement content parts.
+
+Tool output is untrusted, so the runtime drops images that are not PNG, JPEG, WebP or GIF, exceed
+4 MB each, more than 6 per call, or 12 MB in total. It appends `[images omitted: …]` to the tool
+result instead of failing the call. A tool that returns images should therefore tell the user
+what it saved even when the model cannot see it.
+
+`browser_screenshot` is the bundled producer: pass `include_image: true` to receive the page as an
+image. See [Browser automation](/guide/browser).

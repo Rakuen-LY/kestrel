@@ -32,6 +32,22 @@ export interface BrowserStatus {
   executable?: string;
 }
 
+export interface ScreenshotOptions {
+  format?: "png" | "jpeg";
+  /** JPEG quality, 1–100. Ignored for PNG. */
+  quality?: number;
+  /** Include base64 data so the image can be returned to a vision model. */
+  includeData?: boolean;
+}
+
+export interface BrowserScreenshot {
+  path: string;
+  bytes: number;
+  mimeType: string;
+  /** Base64 without the `data:` prefix; present when `includeData` is set. */
+  data?: string;
+}
+
 /** One page, bound to one session. */
 export interface BrowserPage {
   open(url: string): Promise<BrowserSnapshot>;
@@ -40,7 +56,8 @@ export interface BrowserPage {
   type(ref: number, text: string, submit?: boolean): Promise<BrowserSnapshot>;
   scroll(direction: "up" | "down", amount?: number): Promise<BrowserSnapshot>;
   back(): Promise<BrowserSnapshot>;
-  screenshot(workspace: string, path?: string): Promise<{ path: string; bytes: number }>;
+  waitFor(condition: { text?: string; selector?: string; timeoutMs?: number }): Promise<BrowserSnapshot>;
+  screenshot(workspace: string, path?: string, options?: ScreenshotOptions): Promise<BrowserScreenshot>;
   status(): BrowserStatus;
   close(): Promise<void>;
 }
@@ -367,6 +384,33 @@ export class BrowserController implements BrowserPage {
     });
   }
 
+  waitFor(condition: { text?: string; selector?: string; timeoutMs?: number }): Promise<BrowserSnapshot> {
+    return this.exclusive(async () => {
+      const browser = await this.require();
+      if (!condition.text && !condition.selector) {
+        throw new Error("Provide `text` or `selector` to wait for.");
+      }
+      const timeoutMs = Math.min(condition.timeoutMs ?? 10_000, this.options.timeoutMs);
+      const deadline = Date.now() + timeoutMs;
+      const expression = condition.text
+        ? `Boolean((document.body?.innerText || "").includes(${JSON.stringify(condition.text)}))`
+        : `Boolean(document.querySelector(${JSON.stringify(condition.selector)}))`;
+      const wanted = condition.text ? `text ${JSON.stringify(condition.text)}` : `selector ${condition.selector}`;
+      while (Date.now() < deadline) {
+        try {
+          if (await this.evaluate<boolean>(browser, expression)) {
+            await delay(this.options.settleMs);
+            return this.snapshotInternal(browser);
+          }
+        } catch {
+          // The document may be navigating; retry until the deadline.
+        }
+        await delay(200);
+      }
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for ${wanted}. Take a snapshot to see the page.`);
+    });
+  }
+
   back(): Promise<BrowserSnapshot> {
     return this.exclusive(async () => {
       const browser = await this.require();
@@ -376,19 +420,30 @@ export class BrowserController implements BrowserPage {
     });
   }
 
-  async screenshot(workspace: string, path?: string): Promise<{ path: string; bytes: number }> {
+  async screenshot(workspace: string, path?: string, options: ScreenshotOptions = {}): Promise<BrowserScreenshot> {
     return this.exclusive(async () => {
       const browser = await this.require();
-      const target = resolveScreenshotPath(workspace, path ?? `screenshots/browser-${Date.now()}.png`);
+      const format = options.format ?? "png";
+      const extension = format === "jpeg" ? "jpg" : "png";
+      const target = resolveScreenshotPath(
+        workspace,
+        path ?? `screenshots/browser-${Date.now()}.${extension}`,
+      );
+      const quality = Math.min(100, Math.max(1, Math.round(options.quality ?? 80)));
       const { data } = await browser.connection.send<{ data: string }>(
         "Page.captureScreenshot",
-        { format: "png", fromSurface: true },
+        { format, fromSurface: true, ...(format === "jpeg" ? { quality } : {}) },
         browser.sessionId,
       );
       const image = Buffer.from(data, "base64");
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, image);
-      return { path: target, bytes: image.byteLength };
+      return {
+        path: target,
+        bytes: image.byteLength,
+        mimeType: format === "jpeg" ? "image/jpeg" : "image/png",
+        ...(options.includeData ? { data } : {}),
+      };
     });
   }
 

@@ -48,6 +48,21 @@ const initialState: UiState = {
   unauthorized: false,
 };
 
+function toolRunsFrom(messages: readonly ChatMessage[]): Record<string, ToolResult> {
+  const runs: Record<string, ToolResult> = {};
+  for (const message of messages) {
+    if (message.role !== "tool" || !message.toolCallId) continue;
+    runs[message.toolCallId] = {
+      callId: message.toolCallId,
+      name: message.toolName ?? "tool",
+      ok: !message.isError,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images } : {}),
+    };
+  }
+  return runs;
+}
+
 type Action =
   | { type: "bootstrap"; bootstrap: BootstrapResponse }
   | { type: "sessions"; sessions: SessionSummary[] }
@@ -87,6 +102,8 @@ function reducer(state: UiState, action: Action): UiState {
       return {
         ...state,
         detail: action.detail,
+        toolRuns: toolRunsFrom(action.detail.messages),
+        runningCalls: {},
         busy: action.detail.status === "running",
       };
     case "connection":
@@ -142,7 +159,7 @@ function applyEvent(state: UiState, event: SessionEvent): UiState {
         detail: { ...state.detail, messages: event.messages },
         streaming: undefined,
         runningCalls: {},
-        toolRuns: {},
+        toolRuns: toolRunsFrom(event.messages),
         approvals: [],
         busy: false,
         error: undefined,

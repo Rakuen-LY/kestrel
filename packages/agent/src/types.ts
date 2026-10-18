@@ -6,6 +6,7 @@ import type {
   ToolPermission,
   ToolSchema,
   Usage,
+  ImageAttachment,
 } from "@kestrel/protocol";
 import type { Logger } from "@kestrel/kernel";
 import type { RetryOptions } from "./retry.js";
@@ -48,6 +49,8 @@ export interface ToolExecutionResult {
   isError?: boolean;
   /** Ask the agent loop to stop after this result (e.g. a `finish` tool). */
   terminate?: boolean;
+  /** Images to show in clients and feed back to vision models. */
+  images?: ImageAttachment[];
 }
 
 export interface ToolSession {

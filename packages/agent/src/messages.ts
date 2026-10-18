@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ChatMessage, MessageRole, ToolCall, Usage } from "@kestrel/protocol";
+import type { ChatMessage, ImageAttachment, MessageRole, ToolCall, Usage } from "@kestrel/protocol";
 
 export function createMessage(role: MessageRole, content: string, extra: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -21,8 +21,17 @@ export function assistantMessage(
   });
 }
 
-export function toolMessage(call: ToolCall, content: string): ChatMessage {
-  return createMessage("tool", content, { toolCallId: call.id, toolName: call.name });
+export function toolMessage(
+  call: ToolCall,
+  content: string,
+  options: { images?: ImageAttachment[]; isError?: boolean } = {},
+): ChatMessage {
+  return createMessage("tool", content, {
+    toolCallId: call.id,
+    toolName: call.name,
+    ...(options.images?.length ? { images: options.images } : {}),
+    ...(options.isError ? { isError: true } : {}),
+  });
 }
 
 export function textOf(message: ChatMessage): string {

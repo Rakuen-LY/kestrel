@@ -124,6 +124,11 @@ never contains agent logic.
   that support vision serialize user parts; text-only messages remain plain strings so endpoints
   without parts keep working. `estimateTokens` charges 1100 tokens per image, and the compaction
   transcript renders image names only — never base64.
+- Tool results may carry images too. `ToolExecutionResult.images` is sanitised by
+  `packages/agent/src/images.ts` (same budgets, note appended on drops), persisted on the tool
+  message with `isError`, emitted in `tool.finished`, and restored into the console's `toolRuns`
+  when a session is reloaded. Anthropic embeds them in `tool_result`; OpenAI-compatible adapters
+  move them to the next user turn or a synthetic user message after a trailing tool batch.
 - Two session stores exist: `FileSessionStore` (one JSON document per session, the default) and
   `SqliteSessionStore` (single WAL database at `<data>/kestrel.db`, opt in with
   `storage.driver: "sqlite"`). They do not share data. Both are single-process stores; the SQLite
@@ -189,4 +194,6 @@ never contains agent logic.
 - Browser tools live in `plugins/browser` and speak CDP over Node's built-in WebSocket; do not add
   Playwright/Puppeteer for this path. The controller serialises every call on one page, returns a
   snapshot from each mutating action, and defaults `--no-sandbox` only when running in a container
-  without user namespaces. Tests skip when no Chromium binary exists.
+  without user namespaces. `browser_screenshot` writes a file and, with `include_image: true`,
+  returns the bytes to the model; JPEG format and quality keep big pages affordable. Tests skip
+  when no Chromium binary exists.

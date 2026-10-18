@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   CompletionRequest,
   CompletionResponse,
+  ImageAttachment,
   LanguageModel,
   ModelInfo,
   TokenDelta,
@@ -66,7 +67,7 @@ export class OpenAICompatibleModel implements LanguageModel {
   async generate(request: CompletionRequest, onDelta?: (delta: TokenDelta) => void): Promise<CompletionResponse> {
     const body: Record<string, unknown> = {
       model: this.info.id,
-      messages: request.messages.map(toWireMessage),
+      messages: toWireMessages(request.messages),
       stream: true,
     };
     if (this.config.supportsTools !== false && request.tools.length > 0) {
@@ -263,13 +264,56 @@ function parseArguments(raw: string): Record<string, unknown> {
   }
 }
 
-function toWireMessage(message: ChatMessage): Record<string, unknown> {
-  if (message.role === "user" && message.images?.length) {
+/**
+ * OpenAI tool messages cannot carry images. Images produced by a tool are
+ * therefore attached to the next user message; if the turn ends on tool
+ * results, they become a user message after the tool batch, which every
+ * compatible endpoint accepts and vision models read as tool output.
+ */
+function toWireMessages(messages: readonly ChatMessage[]): Array<Record<string, unknown>> {
+  const wire: Array<Record<string, unknown>> = [];
+  let pending: ImageAttachment[] = [];
+
+  const flush = (): void => {
+    if (pending.length === 0) return;
+    wire.push({
+      role: "user",
+      content: [
+        { type: "text", text: "Images returned by tool calls:" },
+        ...pending.map(imagePart),
+      ],
+    });
+    pending = [];
+  };
+
+  for (const message of messages) {
+    if (message.role === "tool") {
+      wire.push(toWireMessage(message));
+      if (message.images?.length) pending.push(...message.images);
+      continue;
+    }
+    if (message.role === "user" && pending.length > 0) {
+      wire.push(toWireMessage(message, pending));
+      pending = [];
+      continue;
+    }
+    flush();
+    wire.push(toWireMessage(message));
+  }
+  flush();
+  return wire;
+}
+
+function imagePart(image: ImageAttachment): Record<string, unknown> {
+  return { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } };
+}
+
+function toWireMessage(message: ChatMessage, extraImages: readonly ImageAttachment[] = []): Record<string, unknown> {
+  const images = [...(message.images ?? []), ...extraImages];
+  if (message.role === "user" && images.length > 0) {
     const parts: Array<Record<string, unknown>> = [];
     if (message.content) parts.push({ type: "text", text: message.content });
-    for (const image of message.images) {
-      parts.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } });
-    }
+    for (const image of images) parts.push(imagePart(image));
     return { role: "user", content: parts };
   }
   if (message.role === "tool") {

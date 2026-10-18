@@ -114,7 +114,7 @@ approval". Returning `"deny"` rejects the call without asking.
 | `todo_write` | auto | Maintains a visible task list for the run. |
 | `finish` | auto | Ends the run with a final summary. |
 
-`@kestrel/plugin-browser` adds eight browser tools; see [Browser automation](/guide/browser).
+`@kestrel/plugin-browser` adds nine browser tools; see [Browser automation](/guide/browser).
 
 `@kestrel/plugin-memory` adds `memory_save`, `memory_search`, `memory_list` and `memory_forget`.
 `@kestrel/plugin-skills` adds `use_skill`, which loads a workspace procedure on demand; see

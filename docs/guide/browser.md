@@ -67,8 +67,9 @@ container is then the isolation boundary. On a desktop host the browser sandbox 
 | `browser_click` | auto | Click element `ref` from the latest snapshot. |
 | `browser_type` | auto | Replace an input's value, optionally submit its form. |
 | `browser_scroll` | auto | Scroll by pixels (default 700) and snapshot. |
+| `browser_wait_for` | auto | Wait for text or a CSS selector, then snapshot. |
 | `browser_back` | auto | Go back in history and snapshot. |
-| `browser_screenshot` | auto | Save a PNG inside the workspace. |
+| `browser_screenshot` | auto | Save a screenshot inside the workspace; `include_image` returns it. |
 | `browser_close` | auto | Close the browser and delete its temporary profile. |
 
 Every mutating tool returns a **fresh snapshot**, so the model does not need a second call to see
@@ -90,9 +91,12 @@ next snapshot — the same observe/act loop a human uses.
 
 ### Screenshots
 
-`browser_screenshot` writes a PNG under the session workspace and returns the path and byte count.
-The image is **not** sent to the model; it is for humans reviewing the run, or for later steps that
-inspect the file. Paths outside the workspace are rejected.
+`browser_screenshot` writes an image under the session workspace and returns the path and byte
+count. Set `include_image: true` to attach the same bytes to the tool result for a vision model;
+without it the image is only for humans reviewing the run or for later steps that inspect the
+file. `format: "jpeg"` and `quality` reduce the size of large pages, and PNG stays the default.
+Paths outside the workspace are rejected. See [Images from tools](/guide/models#images-from-tools)
+for the budgets that apply to tool images.
 
 ## Programmatic use
 
@@ -107,8 +111,8 @@ if (button) await page.click(button.ref);
 ```
 
 The service exposes `page(sessionId)`, `status(sessionId)`, `close(sessionId)` and `closeAll()`.
-The returned page has `open`, `snapshot`, `click`, `type`, `scroll`, `back`, `screenshot`, `status`
-and `close`. Calls are serialised over that page, which keeps refs and navigation deterministic;
+The returned page has `open`, `snapshot`, `click`, `type`, `scroll`, `back`, `waitFor`,
+`screenshot`, `status` and `close`. Calls are serialised over that page, which keeps refs and navigation deterministic;
 different sessions run on separate pages and never share cookies or refs. Pages are created lazily
 and closed after `idleMs` without use. The service is declared in `ServiceMap`, so TypeScript checks
 the usage.
@@ -138,8 +142,9 @@ the usage.
 - No file upload or download handling.
 - No persistent profile, cookie import or authenticated-session reuse.
 - No video, canvas or WebGL assertions; screenshots capture what the compositor produced.
-- Client-side rendering is given `settleMs`, not an arbitrary condition. If an app needs longer,
-  increase it or call `browser_snapshot` again.
+- Client-side rendering is given `settleMs`, not an arbitrary condition. For apps that need
+  longer, call `browser_wait_for` with the text or selector that marks readiness; do not raise
+  `settleMs` and hope.
 - Anti-bot systems may block headless Chromium. That is a policy decision for the target site, not
   something the plugin tries to circumvent.
 

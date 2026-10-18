@@ -65,6 +65,69 @@ describe("OpenAI-compatible image messages", () => {
     expect(content[0].type).toBe("image_url");
   });
 
+  it("attaches tool images to the next user message", async () => {
+    const { model, body } = await capture();
+    await model.generate({
+      messages: [
+        user("look at the page"),
+        {
+          id: "a1",
+          role: "assistant",
+          content: "",
+          createdAt: new Date().toISOString(),
+          toolCalls: [{ id: "call_1", name: "browser_screenshot", arguments: {} }],
+        },
+        {
+          id: "t1",
+          role: "tool",
+          toolCallId: "call_1",
+          toolName: "browser_screenshot",
+          content: "Saved screenshot.",
+          createdAt: new Date().toISOString(),
+          images: [{ mimeType: "image/png", data: PNG, name: "shot.png" }],
+        },
+        user("what changed?"),
+      ],
+      tools: [],
+    });
+
+    const messages = body().messages as Array<{ role: string; content: unknown }>;
+    expect(messages).toHaveLength(4);
+    expect(messages[3]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "what changed?" },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${PNG}` } },
+      ],
+    });
+  });
+
+  it("emits a user turn when a tool batch with images ends the history", async () => {
+    const { model, body } = await capture();
+    await model.generate({
+      messages: [
+        {
+          id: "t1",
+          role: "tool",
+          toolCallId: "call_1",
+          toolName: "browser_screenshot",
+          content: "Saved screenshot.",
+          createdAt: new Date().toISOString(),
+          images: [{ mimeType: "image/jpeg", data: "AAAA" }],
+        },
+      ],
+      tools: [],
+    });
+
+    const messages = body().messages as Array<{ role: string; content: Array<Record<string, unknown>> }>;
+    expect(messages[1].role).toBe("user");
+    expect(messages[1].content[0]).toEqual({ type: "text", text: "Images returned by tool calls:" });
+    expect(messages[1].content[1]).toEqual({
+      type: "image_url",
+      image_url: { url: "data:image/jpeg;base64,AAAA" },
+    });
+  });
+
   it("keeps text-only messages as plain strings", async () => {
     const { model, body } = await capture();
     await model.generate({ messages: [user("plain")], tools: [] });

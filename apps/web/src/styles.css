@@ -973,6 +973,10 @@ a {
   grid-template-columns: minmax(0, 320px);
 }
 
+.tool-images {
+  margin: 8px 0 4px;
+}
+
 .message-images img {
   width: 100%;
   max-height: 320px;

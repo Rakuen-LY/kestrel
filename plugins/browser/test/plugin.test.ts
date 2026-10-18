@@ -80,7 +80,7 @@ describe.skipIf(!built || !browser)("browser tools through the runtime", () => {
         { toolCalls: [{ name: "browser_open", arguments: { url: origin } }] },
         { toolCalls: [{ name: "browser_click", arguments: { ref: 2 } }] },
         { toolCalls: [{ name: "browser_type", arguments: { ref: 3, text: "Ada" } }] },
-        { toolCalls: [{ name: "browser_screenshot", arguments: { path: "shots/runtime.png" } }] },
+        { toolCalls: [{ name: "browser_screenshot", arguments: { path: "shots/runtime.png", include_image: true } }] },
         { toolCalls: [{ name: "browser_close", arguments: {} }] },
         { content: "done" },
       ]),
@@ -99,8 +99,14 @@ describe.skipIf(!built || !browser)("browser tools through the runtime", () => {
     expect(toolResults).toContain("pressed");
     expect(toolResults).toContain("Ada");
     expect(toolResults).toContain("Saved screenshot");
+    expect(toolResults).toContain("The image is attached");
 
     const png = await readFile(join(workspace, "shots/runtime.png"));
     expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+
+    const shot = session.messages.find((message) => message.role === "tool" && message.toolName === "browser_screenshot");
+    expect(shot?.images).toHaveLength(1);
+    expect(shot?.images?.[0].mimeType).toBe("image/png");
+    expect(shot?.images?.[0].data).toBe(png.toString("base64"));
   }, 90_000);
 });

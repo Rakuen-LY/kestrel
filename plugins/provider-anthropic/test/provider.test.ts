@@ -218,6 +218,51 @@ describe("Anthropic provider", () => {
     });
   });
 
+  it("attaches tool images to the tool_result block", async () => {
+    const { model, requests } = await endpoint([
+      { type: "message_start", message: { usage: { input_tokens: 1, output_tokens: 0 } } },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 0 } },
+    ]);
+    await model.generate({
+      model: "claude-test",
+      messages: [
+        user("look"),
+        {
+          id: "a1",
+          role: "assistant",
+          content: "",
+          createdAt: new Date().toISOString(),
+          toolCalls: [{ id: "toolu_shot", name: "browser_screenshot", arguments: {} }],
+        },
+        {
+          id: "t1",
+          role: "tool",
+          toolCallId: "toolu_shot",
+          toolName: "browser_screenshot",
+          content: "Saved screenshot.",
+          createdAt: new Date().toISOString(),
+          images: [{ mimeType: "image/png", data: "AAAA", name: "shot.png" }],
+        },
+      ],
+      tools: [],
+    });
+
+    const messages = requests[0].body.messages as Array<{ role: string; content: unknown[] }>;
+    expect(messages[2]).toEqual({
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "toolu_shot",
+          content: [
+            { type: "text", text: "Saved screenshot." },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+          ],
+        },
+      ],
+    });
+  });
+
   it("does not double the version segment in a proxy base URL", async () => {
     const server = createServer((req, res) => {
       res.writeHead(200, { "content-type": "text/event-stream" });

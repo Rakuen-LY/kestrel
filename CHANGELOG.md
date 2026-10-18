@@ -8,14 +8,21 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Tool results can carry images. The runtime persists them on the tool message (with an `isError`
+  flag), forwards them in `tool.finished`, sanitises plugin output (PNG/JPEG/WebP/GIF, 6 images,
+  4 MB each, 12 MB total) and feeds them to models: Anthropic embeds them in `tool_result`, while
+  OpenAI-compatible endpoints receive them on the next user turn. The console renders them in the
+  tool card, including after a reload.
+- `browser_screenshot` accepts `include_image`, `format` (`png`/`jpeg`) and `quality`, and attaches
+  the captured bytes to the result for vision models.
 - Skill authoring: `kestrel skills lint` validates every candidate file — missing `SKILL.md`,
   invalid or duplicate names, empty bodies, escaping symlinks, oversized files and frontmatter
   drift — with `--json` output and exit code `1` on errors. `kestrel skills new` scaffolds a
   kebab-cased `skills/<name>/SKILL.md` and never overwrites an existing one. The checks live in
   `@kestrel/plugin-skills` as `lintSkills` and `scaffoldSkill`.
-- `@kestrel/plugin-browser`: eight headless-Chromium tools (`browser_open`, `browser_snapshot`,
-  `browser_click`, `browser_type`, `browser_scroll`, `browser_back`, `browser_screenshot`,
-  `browser_close`) plus a `browser` service for other plugins. It speaks Chrome DevTools Protocol
+- `@kestrel/plugin-browser`: nine headless-Chromium tools (`browser_open`, `browser_snapshot`,
+  `browser_click`, `browser_type`, `browser_scroll`, `browser_wait_for`, `browser_back`,
+  `browser_screenshot`, `browser_close`) plus a `browser` service for other plugins. It speaks Chrome DevTools Protocol
   directly over Node's WebSocket, so no Playwright dependency or browser download is needed; the
   executable is auto-detected and `browser_open` follows the `ask` policy. Snapshots expose body
   text and numbered interactive elements with password values omitted, every mutating call returns

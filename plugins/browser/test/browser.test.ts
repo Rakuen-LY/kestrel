@@ -24,6 +24,8 @@ const fixture = `<!doctype html>
     <div id="out"></div>
     <div id="echo"></div>
     <input id="secret" type="password" value="hunter2" />
+    <div id="delayed"></div>
+    <script>setTimeout(() => { document.getElementById('delayed').textContent = 'Loaded late'; }, 250);</script>
   </body>
 </html>`;
 
@@ -85,12 +87,34 @@ describe.skipIf(!browser)("browser controller", () => {
     try {
       const shot = await browser!.screenshot(workspace, "nested/page.png");
       expect(shot.bytes).toBeGreaterThan(1000);
+      expect(shot.mimeType).toBe("image/png");
+      expect(shot.data).toBeUndefined();
       const png = await readFile(shot.path);
       expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+
+      const jpeg = await browser!.screenshot(workspace, "nested/page.jpg", {
+        format: "jpeg",
+        quality: 60,
+        includeData: true,
+      });
+      expect(jpeg.mimeType).toBe("image/jpeg");
+      expect(jpeg.data).toBeTruthy();
+      expect(Buffer.from(jpeg.data!, "base64").subarray(0, 3).toString("hex")).toBe("ffd8ff");
     } finally {
       await rm(workspace, { recursive: true, force: true });
     }
   }, 60_000);
+
+  it("waits for text or a selector", async () => {
+    await browser!.open(origin);
+    const byText = await browser!.waitFor({ text: "Loaded late", timeoutMs: 5_000 });
+    expect(byText.text).toContain("Loaded late");
+    const bySelector = await browser!.waitFor({ selector: "#delayed", timeoutMs: 1_000 });
+    expect(bySelector.url).toBe(`${origin}/`);
+    await expect(browser!.waitFor({ text: "never appears", timeoutMs: 300 })).rejects.toThrow(
+      "Timed out after 300ms waiting for text \"never appears\"",
+    );
+  }, 30_000);
 
   it("gives each session its own page", async () => {
     const pool = new BrowserPool({ executable, headless: true, timeoutMs: 20_000, settleMs: 100 }, 5_000);

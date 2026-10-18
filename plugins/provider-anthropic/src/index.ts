@@ -49,7 +49,12 @@ type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+  | {
+      type: "tool_result";
+      tool_use_id: string;
+      content: string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
+      is_error?: boolean;
+    };
 
 type WireMessage = { role: "user" | "assistant"; content: ContentBlock[] };
 
@@ -338,10 +343,18 @@ function toWireMessages(messages: readonly ChatMessage[]): { system: string; mes
       continue;
     }
     if (message.role === "tool") {
+      const content: Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }> = [];
+      if (message.content) content.push({ type: "text", text: message.content });
+      for (const image of message.images ?? []) {
+        content.push({
+          type: "image",
+          source: { type: "base64", media_type: image.mimeType, data: image.data },
+        });
+      }
       pushToolResult({
         type: "tool_result",
         tool_use_id: message.toolCallId ?? "",
-        content: message.content,
+        content: message.images?.length ? content : message.content,
       });
       continue;
     }
