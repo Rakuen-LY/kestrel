@@ -1,6 +1,11 @@
 import { defineConfig } from "vitepress";
 
+// GitHub Pages serves project sites from a subdirectory, so the build takes the
+// prefix from the environment instead of hard-coding one deployment target.
+const base = process.env.DOCS_BASE ?? "/";
+
 export default defineConfig({
+  base,
   title: "Kestrel",
   description: "A plugin-first agent platform. Run autonomous coding agents anywhere, drive them from anywhere.",
   lang: "en-US",
@@ -20,7 +25,7 @@ export default defineConfig({
     },
   },
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/icon.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}icon.svg` }],
     ["meta", { name: "theme-color", content: "#0b0d12" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:title", content: "Kestrel — plugin-first agent platform" }],
@@ -34,7 +39,7 @@ export default defineConfig({
     ],
   ],
   themeConfig: {
-    logo: "/icon.svg",
+    logo: `${base}icon.svg`,
     siteTitle: "Kestrel",
     nav: [
       { text: "Guide", link: "/guide/introduction" },

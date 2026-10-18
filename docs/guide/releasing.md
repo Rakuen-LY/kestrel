@@ -156,6 +156,10 @@ tags and verify signatures, and both guarantees assume tags do not move.
 ## Documentation site
 
 `pnpm docs:build` produces `docs/.vitepress/dist`. CI uploads it as the `documentation` artifact,
-and every release attaches a checksummed tarball. Publishing it to a host (GitHub Pages, Netlify,
-S3, or the Kestrel server itself) is a deployment step performed outside this repository, so the
-open-platform site can move without changing the release contract.
+and every release attaches a checksummed tarball.
+
+`.github/workflows/docs.yml` publishes that build to GitHub Pages on every push to `main` that
+touches `docs/`. The site is served from a project subdirectory, so the build takes its prefix from
+`DOCS_BASE` (`/kestrel/` in the workflow, `/` by default). Pointing a custom domain at the site only
+requires changing that variable and the repository's Pages settings; the release contract does not
+change, and any other host (Netlify, S3, or the Kestrel server itself) can serve the same artifact.

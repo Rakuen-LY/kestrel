@@ -10,6 +10,9 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- GitHub Pages deployment for the documentation site. `.github/workflows/docs.yml` builds
+  `docs/.vitepress/dist` and deploys it on every push to `main` that touches `docs/`; `DOCS_BASE`
+  supplies the project-site prefix so the same build works at `/`, `/kestrel/` or a custom domain.
 - Single-sourced versioning. `KESTREL_VERSION` in `packages/protocol/src/version.ts` is the only
   literal; `pnpm version:set <version>` rewrites every workspace manifest and
   `pnpm version:check` (also a unit test) fails on drift. `/api/health`, `/api/bootstrap`, the CLI
@@ -160,6 +163,12 @@ All notable changes to Kestrel are documented here. The format follows
   is uploaded as a build artifact.
 
 ### Fixed
+
+- The browser plugin retried a failed launch without Chromium's sandbox. Chrome exits before
+  printing a DevTools endpoint on hosts that lack unprivileged user namespaces — hardened CI
+  images, some VM guests — so the plugin now retries once with `--no-sandbox` and reports the
+  original error if that fails too. `KESTREL_BROWSER_NO_SANDBOX=1` forces the behaviour, and
+  `KESTREL_BROWSER_PATH` still selects an explicit binary.
 
 - The container shipped broken plugins. Plugin bundles externalized `@kestrel/agent`, but the image
   copies `plugins/**` without the workspace packages, so `quota`, `provider-openai` and
