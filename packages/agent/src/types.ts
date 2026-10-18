@@ -8,6 +8,7 @@ import type {
   Usage,
 } from "@kestrel/protocol";
 import type { Logger } from "@kestrel/kernel";
+import type { RetryOptions } from "./retry.js";
 import type { ModelRegistry, ToolRegistry } from "./registry.js";
 import type { AgentSession } from "./session.js";
 
@@ -134,6 +135,8 @@ export interface AgentSessionOptions {
   onPersist?: (session: AgentSession) => void;
   /** Runs immediately before a run is launched; throwing cancels the start. */
   beforeRun?: (session: AgentSession) => void;
+  /** Backoff for transient model failures; `attempts: 1` disables retries. */
+  retry?: RetryOptions;
 }
 
 /**

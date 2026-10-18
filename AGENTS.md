@@ -156,4 +156,11 @@ never contains agent logic.
 - Triggers (`plugins/triggers`) are in-process: cron uses five UTC fields with OR semantics for
   day-of-month/day-of-week, fires at most once per minute, skips overlapping runs and never catches
   up after downtime. Webhook secrets expand `${ENV}`; a public hook without a secret is refused.
-
+- Model failures are classified in the adapters, not the runtime: providers throw
+  `ModelRequestError` from `@kestrel/agent` (built with `modelHttpError()`/`modelNetworkError()`),
+  and `AgentSession.callModel` retries only errors marked retryable. A retry is skipped once any
+  delta has been forwarded, so clients never see duplicated text. Backoff is equal-jitter
+  exponential; `Retry-After` wins but is capped by `maxDelayMs`. Retries surface as `notice` events.
+- Plugins resolve `@kestrel/agent` through its `dist` exports map, not `src`. After adding or
+  renaming anything exported from a package, rebuild that package (`pnpm build`) before smoke
+  testing plugins, or module linking fails with "does not provide an export named ...".

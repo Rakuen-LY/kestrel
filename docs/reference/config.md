@@ -92,6 +92,9 @@ refactors. When the limit is reached the run emits a `notice` and `run.finished`
 | `compaction.threshold` | number | `0.8` | Fraction of the context window that triggers compaction. |
 | `compaction.keepRecent` | number | `8` | Messages kept verbatim after the summary. |
 | `compaction.fallbackContextWindow` | number | `128000` | Window assumed when a model reports none. |
+| `retry.attempts` | number | `3` | Total model-call attempts, including the first. `1` disables retries. |
+| `retry.baseDelayMs` | number | `500` | Base for exponential backoff. |
+| `retry.maxDelayMs` | number | `8000` | Cap for a single wait, including `Retry-After` hints. |
 
 A session may pin a different workspace at creation; tools then operate there. The default system
 prompt always states the active workspace and tool list.

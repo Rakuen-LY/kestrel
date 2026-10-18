@@ -150,6 +150,30 @@ Report input and output token counts when the provider supplies them. The runtim
 run and includes it in `run.finished`; clients can display totals or bill against them. Estimates
 are acceptable for providers that do not report usage, but label them as estimates in your metrics.
 
+## Retries
+
+The runtime retries transient failures so providers do not each implement their own policy. An
+adapter throws `ModelRequestError` with `retryable: true` for rate limits, gateway errors and
+network failures, and the session retries with exponential backoff and jitter. A `Retry-After`
+header wins over the computed delay, capped by `maxDelayMs`. Each retry emits a `notice` event, so
+clients show the wait without a separate protocol message.
+
+Retries are safe by construction: an attempt that already streamed a token is never retried,
+because clients have rendered those deltas. A failure after the first delta fails the run instead
+of duplicating output.
+
+```json
+{
+  "agent": {
+    "retry": { "attempts": 4, "baseDelayMs": 750, "maxDelayMs": 15000 }
+  }
+}
+```
+
+Classification lives in the adapters: HTTP 408, 409, 425, 429, 5xx and fetch failures are
+retryable; other 4xx responses are final. Provider authors get `modelHttpError()` and
+`modelNetworkError()` from `@kestrel/agent`.
+
 ## Errors and cancellation
 
 - Throw on HTTP or protocol errors. The runtime emits `run.failed` with your message and marks the

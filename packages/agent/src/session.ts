@@ -11,6 +11,7 @@ import type {
   ToolSchema,
 } from "@kestrel/protocol";
 import { formatValidationIssues, validateArguments } from "./registry.js";
+import { DEFAULT_RETRY, isModelRequestError, retryDelay, sleep, type RetryOptions } from "./retry.js";
 import {
   addUsage,
   assistantMessage,
@@ -520,14 +521,48 @@ export class AgentSession {
    * A provider is expected to honour the abort signal, but cancellation must not
    * depend on it: racing the call means a hung request cannot pin the session
    * in `running` forever.
+   *
+   * Transient failures are retried with backoff. An attempt that already
+   * streamed text is never retried, because the client has seen those deltas
+   * and replaying them would duplicate output.
    */
-  private callModel(
+  private async callModel(
     model: LanguageModel,
     request: CompletionRequest,
     signal: AbortSignal,
     onDelta: (delta: TokenDelta) => void,
   ): Promise<CompletionResponse> {
-    if (signal.aborted) return Promise.reject(new RunCancelledError());
+    const retry: Required<RetryOptions> = { ...DEFAULT_RETRY, ...this.options.retry };
+    const attempts = Math.max(1, Math.floor(retry.attempts));
+    for (let attempt = 1; ; attempt += 1) {
+      if (signal.aborted) throw new RunCancelledError();
+      let streamed = false;
+      try {
+        return await this.once(model, request, signal, (delta) => {
+          streamed = true;
+          onDelta(delta);
+        });
+      } catch (error) {
+        if (isCancellation(error, signal)) throw error;
+        if (!isModelRequestError(error) || !error.retryable || streamed || attempt >= attempts) throw error;
+        const delay = retryDelay(error, attempt, retry);
+        const reason = error.status !== undefined ? `HTTP ${error.status}` : "network error";
+        this.emit({
+          type: "notice",
+          level: "warn",
+          message: `Model request failed (${reason}); retrying in ${(delay / 1_000).toFixed(1)}s (attempt ${attempt + 1}/${attempts}).`,
+        });
+        await sleep(delay, signal);
+      }
+    }
+  }
+
+  private once(
+    model: LanguageModel,
+    request: CompletionRequest,
+    signal: AbortSignal,
+    onDelta: (delta: TokenDelta) => void,
+  ): Promise<CompletionResponse> {
     return new Promise<CompletionResponse>((resolve, reject) => {
       const onAbort = () => reject(new RunCancelledError());
       signal.addEventListener("abort", onAbort, { once: true });

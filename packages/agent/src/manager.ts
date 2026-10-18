@@ -6,6 +6,7 @@ import { defaultSystemPrompt, subagentSystemPrompt } from "./prompt.js";
 import type { PromptPipeline } from "./prompts.js";
 import type { SessionStore } from "./store.js";
 import type { ModelRegistry, ToolRegistry } from "./registry.js";
+import type { RetryOptions } from "./retry.js";
 import type {
   ApprovalHandler,
   CompactionOptions,
@@ -56,6 +57,8 @@ export interface SessionManagerOptions {
   compaction?: CompactionOptions;
   approve?: ApprovalHandler;
   resolvePermission?: PermissionResolver;
+  /** Retry policy for transient model failures. */
+  retry?: RetryOptions;
 }
 
 /**
@@ -302,6 +305,7 @@ export class SessionManager {
       logger: this.options.logger.child({ sessionId: id }),
       approve: this.options.approve,
       resolvePermission: this.options.resolvePermission,
+      retry: this.options.retry,
       beforeRun: () =>
         this.checkGuards({
           action: "run",

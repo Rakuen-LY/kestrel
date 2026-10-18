@@ -21,6 +21,7 @@ interface SessionManagerOptions {
   maxTokens?: number;
   approve?: ApprovalHandler;
   resolvePermission?: PermissionResolver;
+  retry?: RetryOptions;          // { attempts, baseDelayMs, maxDelayMs }
 }
 
 class SessionManager {
@@ -46,6 +47,17 @@ event; the HTTP event hub is built on it. `close()` cancels active runs and drop
 during runtime shutdown. Nothing is deleted from the store.
 
 `SessionNotFoundError` has `code = "session_not_found"`, which the HTTP layer maps to `404`.
+
+## Model errors and retries
+
+`ModelRequestError` carries `status`, `retryable` and `retryAfterMs`. `isModelRequestError()`
+detects it structurally, so a provider bundled with its own copy of the package still classifies
+correctly. Adapters use `modelHttpError()` and `modelNetworkError()` to build one.
+
+`retryDelay(error, attempt, options, random?)` computes equal-jitter exponential backoff and lets
+a `Retry-After` hint win, capped by `maxDelayMs`. `sleep(ms, signal)` is abortable. The session loop
+retries only errors marked retryable, only before the first token reaches the client, and reports
+each wait as a `notice` event.
 
 ## `AgentSession`
 

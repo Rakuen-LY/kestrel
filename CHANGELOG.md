@@ -8,6 +8,9 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Retry policy for transient model failures: adapters classify errors as retryable, the runtime
+  retries with jittered exponential backoff, honours `Retry-After`, never replays streamed output
+  and announces each retry as a `notice`. Configure with `agent.retry`.
 - `@kestrel/plugin-anthropic`: native Messages API provider with streaming text, extended thinking,
   tool use, images, usage accounting and proxy-friendly `baseUrl` handling.
 - Session guards: `SessionManager.addGuard()` lets a plugin veto session creation and run launches.

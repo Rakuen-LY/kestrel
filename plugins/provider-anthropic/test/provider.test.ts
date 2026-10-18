@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ChatMessage, TokenDelta } from "@kestrel/agent";
+import { ModelRequestError } from "@kestrel/agent";
 import { AnthropicModel } from "../src/index.js";
 
 const servers: Server[] = [];
@@ -20,7 +21,7 @@ function sse(events: unknown[]): string {
 /** Fake Anthropic endpoint that records the request and replays the given events. */
 async function endpoint(
   events: unknown[],
-  options: { status?: number; body?: string } = {},
+  options: { status?: number; body?: string; headers?: Record<string, string> } = {},
 ): Promise<{
   model: AnthropicModel;
   baseUrl: string;
@@ -33,7 +34,7 @@ async function endpoint(
     req.on("end", () => {
       requests.push({ body: JSON.parse(raw) as Record<string, unknown>, headers: req.headers, path: req.url });
       if (options.status && options.status >= 400) {
-        res.writeHead(options.status, { "content-type": "application/json" });
+        res.writeHead(options.status, { "content-type": "application/json", ...options.headers });
         res.end(options.body ?? '{"type":"error","error":{"message":"boom"}}');
         return;
       }
@@ -247,14 +248,29 @@ describe("Anthropic provider", () => {
     expect(thinking.info.supportsReasoning).toBe(true);
   });
 
-  it("includes the response body in error messages", async () => {
+  it("classifies a 400 as non-retryable and keeps the response body", async () => {
     const { model } = await endpoint([], {
       status: 400,
       body: '{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens too large"}}',
     });
-    await expect(model.generate({ model: "claude-test", messages: [user("q")], tools: [] })).rejects.toThrow(
-      /400.*max_tokens too large/s,
-    );
+    const error = await model
+      .generate({ model: "claude-test", messages: [user("q")], tools: [] })
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(ModelRequestError);
+    expect(error).toMatchObject({ status: 400, retryable: false });
+    expect((error as Error).message).toMatch(/400.*max_tokens too large/s);
+  });
+
+  it("marks a 429 as retryable and parses Retry-After", async () => {
+    const { model } = await endpoint([], { status: 429, headers: { "retry-after": "2" } });
+    const error = (await model
+      .generate({ model: "claude-test", messages: [user("q")], tools: [] })
+      .catch((reason: unknown) => reason)) as ModelRequestError;
+
+    expect(error.retryable).toBe(true);
+    expect(error.status).toBe(429);
+    expect(error.retryAfterMs).toBe(2_000);
   });
 
   it("fails on a mid-stream error event", async () => {
@@ -262,8 +278,11 @@ describe("Anthropic provider", () => {
       { type: "message_start", message: { usage: { input_tokens: 3, output_tokens: 0 } } },
       { type: "error", error: { type: "overloaded_error", message: "try later" } },
     ]);
-    await expect(model.generate({ model: "claude-test", messages: [user("q")], tools: [] })).rejects.toThrow(
-      /try later/,
-    );
+    const error = (await model
+      .generate({ model: "claude-test", messages: [user("q")], tools: [] })
+      .catch((reason: unknown) => reason)) as ModelRequestError;
+
+    expect(error).toMatchObject({ retryable: true });
+    expect(error.message).toMatch(/try later/);
   });
 });

@@ -10,9 +10,6 @@
     "baseUrl": "https://api.openai.com/v1",
     "apiKeyEnv": "OPENAI_API_KEY",
     "provider": "openai",
-    "model": "gpt-4o-mini",
-    "models": [
-      "gpt-4o-mini"
-    ]
+    "model": "gpt-4o-mini"
   }
 }

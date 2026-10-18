@@ -11,6 +11,17 @@ export { ModelRegistry, ToolRegistry, validateArguments, formatValidationIssues 
 export { defaultSystemPrompt, compactSystemPrompt, subagentSystemPrompt } from "./prompt.js";
 export type { SubagentPromptOptions } from "./prompt.js";
 export { PromptPipeline } from "./prompts.js";
+export {
+  DEFAULT_RETRY,
+  ModelRequestError,
+  isModelRequestError,
+  modelHttpError,
+  modelNetworkError,
+  parseRetryAfter,
+  retryDelay,
+  sleep,
+} from "./retry.js";
+export type { RetryOptions } from "./retry.js";
 export type { PromptContext, PromptLayer, PromptPipelineOptions } from "./prompts.js";
 export {
   addUsage,

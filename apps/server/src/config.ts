@@ -26,12 +26,21 @@ export interface CompactionConfig {
   fallbackContextWindow?: number;
 }
 
+export interface RetryConfig {
+  /** Total attempts, including the first. `1` disables retries. */
+  attempts?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+}
+
 export interface AgentConfig {
   workspace?: string;
   systemPrompt?: string;
   restrictToWorkspace?: boolean;
   /** Summarize old turns once the prompt approaches the model window. */
   compaction?: CompactionConfig;
+  /** Retry transient model failures (429, 5xx, network) with backoff. */
+  retry?: RetryConfig;
 }
 
 export interface PluginsConfig {

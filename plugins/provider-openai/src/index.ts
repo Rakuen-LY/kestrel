@@ -7,6 +7,7 @@ import type {
   TokenDelta,
   Usage,
 } from "@kestrel/agent";
+import { modelHttpError, modelNetworkError, ModelRequestError } from "@kestrel/agent";
 import type { Context } from "@kestrel/kernel";
 
 export interface OpenAIProviderConfig {
@@ -104,17 +105,23 @@ export class OpenAICompatibleModel implements LanguageModel {
         signal,
       });
     } catch (error) {
-      if (timeout.aborted) throw new Error(`Model request timed out after ${this.config.timeoutMs}ms.`);
-      throw error;
+      if (request.signal?.aborted) throw error;
+      if (timeout.aborted) {
+        throw new ModelRequestError(`Model request timed out after ${this.config.timeoutMs}ms.`, {
+          retryable: true,
+          cause: error,
+        });
+      }
+      throw modelNetworkError(error, "Model request failed");
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(
-        `Model endpoint returned ${response.status} ${response.statusText}: ${text.slice(0, 2_000) || "(empty body)"}`,
-      );
+      throw modelHttpError(response.status, response.statusText, text, response.headers.get("retry-after"));
     }
-    if (!response.body) throw new Error("Model endpoint returned an empty stream.");
+    if (!response.body) {
+      throw new ModelRequestError("Model endpoint returned an empty stream.", { retryable: true });
+    }
 
     return readStream(response.body, onDelta);
   }
