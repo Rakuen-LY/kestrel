@@ -6,6 +6,7 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withVersion } from "./lib/changelog.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -65,10 +66,9 @@ async function set(requested) {
     process.exit(2);
   }
   for (const path of await manifestPaths()) {
-    const pkg = await readManifest(path);
-    if (pkg.version === requested) continue;
-    pkg.version = requested;
-    await writeFile(path, `${JSON.stringify(pkg, null, 2)}\n`);
+    const source = await readFile(path, "utf8");
+    const next = withVersion(source, requested);
+    if (next !== source) await writeFile(path, next);
   }
   const sourcePath = join(repoRoot, "packages/protocol/src/version.ts");
   const source = await readFile(sourcePath, "utf8");
@@ -77,10 +77,14 @@ async function set(requested) {
     `export const KESTREL_VERSION = "${requested}";`,
   );
   if (next === source) {
-    console.error(`Could not rewrite the version constant in ${sourcePath}.`);
-    process.exit(2);
+    const constant = /export const KESTREL_VERSION = "([^"]+)"/.exec(source)?.[1];
+    if (constant !== requested) {
+      console.error(`Could not rewrite the version constant in ${sourcePath}.`);
+      process.exit(2);
+    }
+  } else {
+    await writeFile(sourcePath, next);
   }
-  await writeFile(sourcePath, next);
   console.log(`Version set to ${requested}. Update CHANGELOG.md before tagging.`);
 }
 

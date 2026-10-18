@@ -17,7 +17,12 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ["packages/**/test/**/*.test.ts", "apps/**/test/**/*.test.ts", "plugins/**/test/**/*.test.ts"],
+    include: [
+      "packages/**/test/**/*.test.ts",
+      "apps/**/test/**/*.test.ts",
+      "plugins/**/test/**/*.test.ts",
+      "scripts/**/test/**/*.test.mjs",
+    ],
     environment: "node",
     testTimeout: 30_000,
     hookTimeout: 30_000,

@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rollChangelog } from "./lib/changelog.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -51,29 +52,6 @@ function compare(left, right) {
   return 0;
 }
 
-/**
- * Moves everything under `## [Unreleased]` beneath a new dated heading and
- * leaves an empty unreleased section behind, which is what the workflow's
- * changelog extraction expects.
- */
-function rollChangelog(source, nextVersion, date) {
-  const heading = /^## \[Unreleased\][ \t]*$/m.exec(source);
-  if (!heading) fail("CHANGELOG.md has no `## [Unreleased]` heading.");
-  const rest = source.slice(heading.index + heading[0].length);
-  const nextSection = rest.search(/^## \[/m);
-  if (nextSection < 0) fail("CHANGELOG.md has no released section to anchor against.");
-  const body = rest.slice(0, nextSection).trim();
-  if (!/^[-*] /m.test(body)) fail("Nothing under `## [Unreleased]` — write the changelog first.");
-  return [
-    source.slice(0, heading.index),
-    "## [Unreleased]\n\n",
-    `## [${nextVersion}] - ${date}\n\n`,
-    body,
-    "\n\n",
-    rest.slice(nextSection),
-  ].join("");
-}
-
 if (!version || !SEMVER.test(version)) {
   fail("Usage: pnpm release:prepare <version> [--dry-run] [--sign]");
 }
@@ -92,8 +70,21 @@ if (!dryRun) {
   git("rev-parse", "--verify", "HEAD");
 }
 
+if (sign) {
+  try {
+    git("config", "--get", "user.signingkey");
+  } catch {
+    fail("--sign needs a configured signing key (`git config user.signingkey`). Drop the flag to create an annotated tag.");
+  }
+}
+
 const today = new Date().toISOString().slice(0, 10);
-const rolled = rollChangelog(await readme("CHANGELOG.md"), version, today);
+let rolled;
+try {
+  rolled = rollChangelog(await readme("CHANGELOG.md"), version, today);
+} catch (error) {
+  fail(error.message);
+}
 const branch = (() => {
   try {
     return git("rev-parse", "--abbrev-ref", "HEAD");
@@ -129,9 +120,9 @@ git("commit", "--message", `chore(release): ${version}`, "--message", `Version $
 step("committed");
 
 if (sign) {
-  git("tag", "--sign", tag, "--message", `Kestrel ${version}`);
+  git("tag", "--sign", tag, "--message", `Kestrel v${version}`);
 } else {
-  git("tag", "--annotate", tag, "--message", `Kestrel ${version}`);
+  git("tag", "--annotate", tag, "--message", `Kestrel v${version}`);
 }
 step(`tagged ${tag}`);
 
