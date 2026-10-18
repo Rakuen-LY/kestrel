@@ -8,6 +8,10 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- MCP sampling: with `@kestrel/plugin-mcp` `sampling.enabled`, the client advertises the capability,
+  answers `sampling/createMessage` from the model registry (hints, token ceiling, request budget)
+  over stdio and streamable HTTP, and forwards the tool call's abort signal. Tool calls to one
+  server are serialized so concurrent sessions cannot misattribute a sampling request.
 - Transcript rewind: `POST /api/sessions/:id/rewind` drops a user message and everything after it,
   then restores the checkpoint taken just before that message. `session.rewound` carries the
   surviving transcript; the console adds a rewind button on user messages and the CLI a

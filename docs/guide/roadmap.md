@@ -74,7 +74,7 @@ See [Plugin UI](/guide/plugin-ui).
   roles and a bounded depth (see [Subagents](/guide/subagents)). Still missing: parallel fan-out in
   one tool call, and per-branch cost reporting.
 - ~~MCP resources and prompts~~ — bridged as `mcp__<server>__*` tools and on the `mcp` service;
-  sampling and elicitation remain; see [MCP](/guide/mcp).
+  ~~sampling~~ ships opt-in with per-call budgets, elicitation remains; see [MCP](/guide/mcp).
 - ~~Context compaction and summarisation for long sessions~~ — shipped; see
   [Long sessions](/guide/models#long-sessions-and-compaction).
 - Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery

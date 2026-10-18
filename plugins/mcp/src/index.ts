@@ -1,6 +1,21 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import type { JsonSchema, Tool } from "@kestrel/agent";
+import type { JsonSchema, ModelRegistry, Tool } from "@kestrel/agent";
 import type { Context, Logger } from "@kestrel/kernel";
+import {
+  SamplingGate,
+  createSampler,
+  type McpCallOptions,
+  type McpSamplingConfig,
+} from "./sampling.js";
+
+export type {
+  McpCallOptions,
+  McpSamplingConfig,
+  McpSamplingRequest,
+  McpSamplingResult,
+  SamplingHandler,
+} from "./sampling.js";
+export { SamplingGate, createSampler } from "./sampling.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
@@ -85,6 +100,8 @@ export type McpServerConfig = McpStdioConfig | McpHttpConfig;
 
 export interface McpConfig {
   servers?: Record<string, McpServerConfig>;
+  /** Client-side sampling policy. Disabled unless `enabled` is true. */
+  sampling?: McpSamplingConfig;
 }
 
 /** Transport-neutral surface used by the plugin and by `McpService`. */
@@ -93,7 +110,11 @@ export interface McpClient {
   readonly transport: "stdio" | "http";
   start(): Promise<void>;
   listTools(): Promise<McpToolDescriptor[]>;
-  callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    options?: McpCallOptions,
+  ): Promise<McpToolResult>;
   listResources(): Promise<McpResourceDescriptor[]>;
   readResource(uri: string): Promise<McpReadResult>;
   listPrompts(): Promise<McpPromptDescriptor[]>;
@@ -121,11 +142,13 @@ export class McpStdioClient implements McpClient {
     { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }
   >();
   private closed = false;
+  private readonly gate = new SamplingGate();
 
   constructor(
     readonly name: string,
     private readonly config: McpStdioConfig,
     private readonly logger: Logger,
+    private readonly options: { capabilities?: Record<string, unknown> } = {},
   ) {}
 
   async start(): Promise<void> {
@@ -149,7 +172,7 @@ export class McpStdioClient implements McpClient {
 
     await this.request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
-      capabilities: {},
+      capabilities: this.options.capabilities ?? {},
       clientInfo: { name: "kestrel", version: "0.1.0" },
     });
     this.notify("notifications/initialized", {});
@@ -161,7 +184,15 @@ export class McpStdioClient implements McpClient {
     return result.tools ?? [];
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    options?: McpCallOptions,
+  ): Promise<McpToolResult> {
+    return this.gate.run(options, () => this.callToolNow(name, args));
+  }
+
+  private async callToolNow(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
     const result = (await this.request("tools/call", { name, arguments: args })) as {
       content?: Array<{ type?: string; text?: string }>;
       isError?: boolean;
@@ -244,6 +275,10 @@ export class McpStdioClient implements McpClient {
   }
 
   private settle(message: JsonRpcResponse): void {
+    if (message.method && message.id !== undefined) {
+      void this.answer(message);
+      return;
+    }
     if (typeof message.id !== "number") return;
     const pending = this.pending.get(message.id);
     if (!pending) return;
@@ -251,6 +286,12 @@ export class McpStdioClient implements McpClient {
     clearTimeout(pending.timer);
     if (message.error) pending.reject(new Error(`MCP error ${message.error.code}: ${message.error.message}`));
     else pending.resolve(message.result);
+  }
+
+  private async answer(message: JsonRpcResponse): Promise<void> {
+    const answer = await this.gate.answer(message);
+    if (this.closed) return;
+    this.write({ jsonrpc: "2.0", id: message.id, ...answer });
   }
 
   private failAll(error: Error): void {
@@ -272,11 +313,13 @@ export class McpHttpClient implements McpClient {
   readonly transport = "http" as const;
   private sessionId?: string;
   private nextId = 1;
+  private readonly gate = new SamplingGate();
 
   constructor(
     readonly name: string,
     private readonly config: McpHttpConfig,
     private readonly logger: Logger,
+    private readonly options: { capabilities?: Record<string, unknown> } = {},
   ) {}
 
   async start(): Promise<void> {
@@ -290,7 +333,15 @@ export class McpHttpClient implements McpClient {
     return result.tools ?? [];
   }
 
-  async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    options?: McpCallOptions,
+  ): Promise<McpToolResult> {
+    return this.gate.run(options, () => this.callToolNow(name, args));
+  }
+
+  private async callToolNow(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
     const result = (await this.request("tools/call", { name, arguments: args })) as {
       content?: Array<{ type?: string; text?: string }>;
       isError?: boolean;
@@ -337,7 +388,7 @@ export class McpHttpClient implements McpClient {
   private async initialize(): Promise<void> {
     await this.request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
-      capabilities: {},
+      capabilities: this.options.capabilities ?? {},
       clientInfo: { name: "kestrel", version: "0.1.0" },
     });
   }
@@ -406,6 +457,10 @@ export class McpHttpClient implements McpClient {
           boundary = buffer.indexOf("\n\n");
           const message = parseSseFrame(frame, this.logger, this.name);
           if (!message) continue;
+          if (message.method && message.id !== undefined) {
+            void this.answer(message);
+            continue;
+          }
           if (typeof message.id !== "undefined" && message.id === requestId) {
             answer = message;
             break;
@@ -417,6 +472,18 @@ export class McpHttpClient implements McpClient {
       await reader.cancel().catch(() => undefined);
     }
     return answer;
+  }
+
+  private async answer(message: JsonRpcResponse): Promise<void> {
+    const answer = await this.gate.answer(message);
+    try {
+      await this.post({ jsonrpc: "2.0", id: message.id, ...answer }, false);
+    } catch (error) {
+      this.logger.warn("mcp sampling reply failed", {
+        server: this.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private headers(session = this.sessionId): Record<string, string> {
@@ -443,9 +510,14 @@ class HttpError extends Error {
   }
 }
 
-export function createMcpClient(name: string, config: McpServerConfig, logger: Logger): McpClient {
-  if ("url" in config && config.url) return new McpHttpClient(name, config, logger);
-  if ("command" in config && config.command) return new McpStdioClient(name, config, logger);
+export function createMcpClient(
+  name: string,
+  config: McpServerConfig,
+  logger: Logger,
+  options: { capabilities?: Record<string, unknown> } = {},
+): McpClient {
+  if ("url" in config && config.url) return new McpHttpClient(name, config, logger, options);
+  if ("command" in config && config.command) return new McpStdioClient(name, config, logger, options);
   throw new Error(`MCP server "${name}" needs either "command" (stdio) or "url" (http).`);
 }
 
@@ -466,6 +538,12 @@ export default {
   inject: ["tools"],
   async apply(context: Context, config: McpConfig = {}) {
     const registry = context.get("tools");
+    const samplingConfig = config.sampling;
+    const samplingEnabled = samplingConfig?.enabled === true;
+    // Sampling is optional, so the models service is resolved lazily; installs
+    // that do not run a sampler never need it.
+    const models: ModelRegistry | undefined = samplingEnabled ? context.get("models") : undefined;
+    const capabilities = samplingEnabled ? { sampling: {} } : {};
     const clients = new Map<string, McpClient>();
     const discovered: Array<{ server: string; tool: McpToolDescriptor }> = [];
     const discoveredResources: Array<{ server: string; resource: McpResourceDescriptor }> = [];
@@ -475,7 +553,9 @@ export default {
     for (const [serverName, serverConfig] of Object.entries(config.servers ?? {})) {
       let client: McpClient | undefined;
       try {
-        const ready = createMcpClient(serverName, serverConfig, context.logger.child({ mcp: serverName }));
+        const ready = createMcpClient(serverName, serverConfig, context.logger.child({ mcp: serverName }), {
+          capabilities,
+        });
         await ready.start();
         client = ready;
         clients.set(serverName, ready);
@@ -492,8 +572,12 @@ export default {
               permission: serverConfig.approval ?? "ask",
               parameters: descriptor.inputSchema ?? { type: "object", additionalProperties: true },
             },
-            async execute(args) {
-              const result = await ready.callTool(descriptor.name, args);
+            async execute(args, toolContext) {
+              const sampling = models ? createSampler(models, samplingConfig) : undefined;
+              const result = await ready.callTool(descriptor.name, args, {
+                ...(sampling ? { sampling } : {}),
+                signal: toolContext.signal,
+              });
               return { content: result.content, isError: result.isError, data: result.data };
             },
           };
@@ -652,6 +736,7 @@ export default {
       resources: discoveredResources.length,
       prompts: discoveredPrompts.length,
       capabilities: [...capability],
+      sampling: samplingEnabled,
     });
   },
 };

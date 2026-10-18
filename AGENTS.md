@@ -171,3 +171,10 @@ never contains agent logic.
   targets: truncating at a tool result would orphan an assistant `toolCalls` block. Restore happens
   after truncation, and a restore failure becomes a `warning` in a `200` response instead of
   rolling back the transcript.
+- MCP sampling is a reverse JSON-RPC flow: servers send requests with an id on the same channel
+  used for responses. Stdio answers by writing a JSON object; streamable HTTP answers with a new
+  POST while the original SSE response stays open. The protocol carries no parent id, so
+  `SamplingGate` serializes tool calls per client and scopes the handler and abort signal to one
+  execution. Sampling is off by default, budgets completions (`maxTokens`) and requests per call,
+  and never enters the transcript; the models service is resolved lazily so sampling-disabled
+  installs need no model registry.

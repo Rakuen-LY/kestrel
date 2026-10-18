@@ -6,7 +6,7 @@ is a plugin (`@kestrel/plugin-mcp`), so it follows the same lifecycle, configura
 rules as the built-in tools.
 
 It connects to MCP servers and exposes three of the protocol's primitives to the agent: tools,
-resources and prompts. Sampled and elicitation requests are not bridged yet.
+resources and prompts. Sampling requests are bridged opt-in; elicitation is not.
 
 ## Transports
 
@@ -78,6 +78,49 @@ server's `approval` setting, because the payload comes from a remote process. A 
 `resources/list` or `prompts/list` with an error simply gets no bridge tools, and the rest of its
 tools keep working.
 
+## Sampling
+
+An MCP server can ask the client for a model completion — for example, a summarisation or
+classification server that does not want to ship its own provider credentials. Kestrel answers
+`sampling/createMessage` with the same model registry the agent uses, but only when a deployment
+opts in:
+
+```json
+{
+  "plugins": {
+    "config": {
+      "@kestrel/plugin-mcp": {
+        "sampling": {
+          "enabled": true,
+          "model": "claude-sonnet-4-5",
+          "maxTokens": 1024,
+          "maxRequestsPerCall": 8
+        },
+        "servers": { "summariser": { "command": "summariser-mcp" } }
+      }
+    }
+  }
+}
+```
+
+- `enabled` defaults to `false`. When false the client does not advertise the `sampling` capability,
+  so well-behaved servers never ask, and a server that asks anyway gets a JSON-RPC error.
+- `model` names a registered model. Without it, `modelPreferences.hints[].name` is matched against
+  model ids; the registry default is the last resort.
+- `maxTokens` is a ceiling. A server may ask for less, never more. The default is 1024.
+- `maxRequestsPerCall` bounds one tool execution, so a server cannot sample in a loop. The default
+  is 8.
+
+The bridge is stateless: it sends the request's `systemPrompt` and `messages` and ignores
+`includeContext`, because Kestrel does not mirror one server's view of the conversation into
+another. Text and images are supported; audio and embedded resources are rendered as text
+placeholders. The tool call's abort signal is forwarded to the model, and completions appear in the
+provider's usage statistics but not in the session transcript.
+
+Calls to one MCP server are serialized. The protocol has no parent id on server requests, so when
+two sessions share a stdio process, overlapping tool calls would otherwise race for the handler.
+Serialization keeps attribution exact and costs little for typical MCP tools.
+
 ## Connection lifecycle
 
 - Servers connect during plugin startup, before the first session is created. Startup order is
@@ -130,12 +173,13 @@ imports.
   network calls. Use a container or a dedicated user for untrusted servers. See
   [Security](/guide/security).
 - Nothing is forwarded to a server until the agent calls one of its tools. There is no background
-  polling.
+  polling. Sampling is off by default and budgeted per tool call when enabled: a malicious server
+  can spend tokens, but only within the ceiling you configured.
 
 ## Limits
 
-- Sampling and elicitation are not bridged: the server cannot ask Kestrel's model for a completion
-  or the user for input.
+- Elicitation is not bridged: a server cannot ask the user for structured input mid-call. Sampling
+  is available but opt-in (see [Sampling](#sampling)).
 - Resources and prompts are discovered once, at startup. A template added later needs a restart.
 - No OAuth flow for HTTP servers; use a static token header or a header-injecting proxy.
 - A server whose tool list changes at runtime is not re-discovered; restart the server to pick up
