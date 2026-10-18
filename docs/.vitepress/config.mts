@@ -61,6 +61,7 @@ export default defineConfig({
             { text: "Skills", link: "/guide/skills" },
             { text: "Subagents", link: "/guide/subagents" },
             { text: "Tools & approvals", link: "/guide/tools" },
+            { text: "Browser automation", link: "/guide/browser" },
             { text: "Model Context Protocol", link: "/guide/mcp" },
             { text: "Triggers & schedules", link: "/guide/triggers" },
             { text: "Process sandbox", link: "/guide/sandbox" },

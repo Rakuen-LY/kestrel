@@ -14,6 +14,7 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 | Approvals for `ask` tools over HTTP and CLI | Done |
 | OpenAI-compatible provider (OpenAI, DeepSeek, vLLM, Ollama) | Done |
 | Core filesystem, search, shell, fetch, todo and finish tools | Done |
+| Headless browser tools: snapshots, clicks, typing, screenshots | Done |
 | Memory tools and MCP bridge (stdio and streamable HTTP) | Done |
 | Web console: streaming markdown, tool cards, approvals, plugin panel, PWA install | Done |
 | Plugin UI contributions: browser bundles rendered in console slots | Done |

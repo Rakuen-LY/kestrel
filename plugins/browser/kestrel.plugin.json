@@ -1,0 +1,10 @@
+{
+  "name": "@kestrel/plugin-browser",
+  "version": "0.1.0",
+  "description": "Browse the web with a headless Chromium page: snapshots, clicks, typing and screenshots.",
+  "entry": "dist/index.js",
+  "inject": ["tools"],
+  "config": {
+    "permission": "ask"
+  }
+}

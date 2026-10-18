@@ -8,6 +8,14 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- `@kestrel/plugin-browser`: eight headless-Chromium tools (`browser_open`, `browser_snapshot`,
+  `browser_click`, `browser_type`, `browser_scroll`, `browser_back`, `browser_screenshot`,
+  `browser_close`) plus a `browser` service for other plugins. It speaks Chrome DevTools Protocol
+  directly over Node's WebSocket, so no Playwright dependency or browser download is needed; the
+  executable is auto-detected and `browser_open` follows the `ask` policy. Snapshots expose body
+  text and numbered interactive elements with password values omitted, every mutating call returns
+  a fresh snapshot, and screenshots stay inside the workspace. Container defaults add
+  `--no-sandbox` when user namespaces are unavailable.
 - Sandboxed plugin UI: browser bundles now run in iframes with an opaque origin, served as
   `/plugin-sandbox.html`. A discovery pass records slots, each extension mounts in its own
   auto-sized frame, and API calls go through a postMessage proxy so the token never enters plugin

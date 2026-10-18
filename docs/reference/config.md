@@ -271,6 +271,22 @@ See [Skills](/guide/skills) for the file format and the loading model.
 
 See [Subagents](/guide/subagents) for roles, budgets and observability.
 
+### `@kestrel/plugin-browser`
+
+| Key | Default |
+| --- | --- |
+| `executable` | auto-detected Chrome, Chromium or Edge |
+| `args` | `[]` |
+| `headless` | `true` |
+| `permission` | `ask` — approval for `browser_open` |
+| `timeoutMs` | `30000` |
+| `settleMs` | `250` |
+| `maxTextChars` | `12000` |
+| `maxElements` | `120` |
+| `noSandbox` | auto — enabled on Linux in Docker, Kubernetes or as root |
+
+See [Browser automation](/guide/browser) for tool behaviour and security notes.
+
 ### `@kestrel/plugin-mcp`
 
 | Key | Default |

@@ -186,3 +186,7 @@ never contains agent logic.
 - Plugin UI API calls are default-deny beyond read-only `GET /api/**`; `web.api` grants are checked
   in the parent proxy after URL normalisation, so never forward a raw plugin path without calling
   `apiAllowed` first. `api: []` means no API access at all.
+- Browser tools live in `plugins/browser` and speak CDP over Node's built-in WebSocket; do not add
+  Playwright/Puppeteer for this path. The controller serialises every call on one page, returns a
+  snapshot from each mutating action, and defaults `--no-sandbox` only when running in a container
+  without user namespaces. Tests skip when no Chromium binary exists.

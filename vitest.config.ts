@@ -12,6 +12,7 @@ export default defineConfig({
       { find: "@kestrel/plugin-host", replacement: r("./packages/plugin-host/src/index.ts") },
       { find: /^@kestrel\/plugin-(.+)$/, replacement: `${r("./plugins")}/$1/src/index.ts` },
       { find: "@kestrel/testkit", replacement: r("./packages/testkit/src/index.ts") },
+      { find: "@kestrel/server", replacement: r("./apps/server/src/index.ts") },
     ],
   },
   test: {

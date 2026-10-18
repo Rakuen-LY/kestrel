@@ -131,6 +131,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/protocol
 
+  plugins/browser:
+    dependencies:
+      '@kestrel/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@kestrel/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+
   plugins/context:
     dependencies:
       '@kestrel/agent':

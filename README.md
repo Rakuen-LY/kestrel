@@ -46,7 +46,7 @@ for what changed and why.
 | Kernel | Typed service registry, dependency injection, scoped disposal, lifecycle events, structured logging |
 | Plugins | Manifest discovery, dependency ordering, config merge, isolated contexts, error isolation |
 | Agent | Multi-session runtime, streaming text and reasoning, tool loop, cancellation, step limits, persistence |
-| Tools | Filesystem (read/write/edit/list/glob/grep), glob/grep, shell with approvals, HTTP fetch, todos, finish |
+| Tools | Filesystem (read/write/edit/list/glob/grep), shell with approvals, HTTP fetch, headless browser, todos, finish |
 | Context | Ordered prompt layers; `AGENTS.md` and rule files loaded by a plugin; workspace skills loaded on demand |
 | Models | OpenAI-compatible provider: OpenAI, DeepSeek, vLLM, Ollama and other `/v1` endpoints |
 | Delegation | Subagent sessions with isolated context, roles, tool allowlists and bounded depth |
