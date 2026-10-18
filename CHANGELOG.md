@@ -6,6 +6,17 @@ All notable changes to Kestrel are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Published and signed container images. A `v*` tag now produces
+  `ghcr.io/rakuen-ly/kestrel:<version>`, `<major>.<minor>`, `latest` and `sha-<commit>` for
+  `linux/amd64` and `linux/arm64`, with provenance, an SBOM and a cosign signature. The Compose
+  file, the Kubernetes base and the docs default to that image instead of a local build.
+- A Helm chart (`deploy/helm/kestrel`) covering the same objects as `deploy/k8s`: deployment,
+  service, ingress, both claims, config map, optional secret, service account and notes. `config` is
+  the whole `kestrel.config.json` and `image.tag` defaults to `appVersion`. CI lints the chart and
+  validates the rendered output with kubeconform; releases attach the packaged chart, and
+  `pnpm version:check` keeps its two version fields in step with the product.
 ## [0.2.0] - 2026-10-18
 
 ### Added

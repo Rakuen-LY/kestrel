@@ -13,3 +13,5 @@ apps/web/dist/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 .agent_tmp/
+# Rendered by the manifests CI job.
+helm-rendered.yaml

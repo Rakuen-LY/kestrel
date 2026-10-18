@@ -16,6 +16,7 @@ one place in source — `packages/protocol/src/version.ts` — and is mirrored i
 | `KESTREL_VERSION` | `packages/protocol/src/version.ts` | `pnpm version:check` |
 | Every `package.json` | root `package.json` | `pnpm version:check` |
 | `GET /api/health` `version` | `KESTREL_VERSION` | `pnpm smoke` |
+| Helm chart `version` / `appVersion` | root `package.json` | `pnpm version:check` |
 | Image tag | git tag `v<version>` | release workflow |
 
 `PROTOCOL_VERSION` (`1.0`) is independent: it changes only when the wire format breaks. A patch
@@ -117,7 +118,7 @@ pnpm smoke
    | `sha-<short>` | `sha-1a2b3c4` | commit traceability |
 
 3. **publish** — creates the GitHub release from the changelog section and attaches the
-   documentation tarball and `checksums.txt`.
+   documentation tarball, the packaged Helm chart (`kestrel-<version>.tgz`) and `checksums.txt`.
 
 The workflow needs no repository secrets beyond the automatically provided `GITHUB_TOKEN`; the
 image job requests `packages: write` and `id-token: write` only.
@@ -138,7 +139,7 @@ curl -s http://127.0.0.1:7331/api/health
 `version` in that response must equal the tag without the leading `v`. If the image and the tag
 disagree, the release is broken even if every job reported success.
 
-For the documentation bundle:
+For the download bundle (documentation tarball and chart package):
 
 ```bash
 sha256sum -c checksums.txt

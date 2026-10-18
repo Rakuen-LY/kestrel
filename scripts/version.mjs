@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { withVersion } from "./lib/changelog.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const chartPath = join(repoRoot, "deploy/helm/kestrel/Chart.yaml");
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 async function manifestPaths() {
@@ -39,6 +40,21 @@ async function rootVersion() {
   return (await readManifest(join(repoRoot, "package.json"))).version;
 }
 
+/** The chart ships with the image, so both of its version fields track the product. */
+async function chartVersions() {
+  const source = await readFile(chartPath, "utf8");
+  return {
+    version: /^version:\s*(\S+)/m.exec(source)?.[1],
+    appVersion: /^appVersion:\s*"?([^"\s]+)"?/m.exec(source)?.[1],
+  };
+}
+
+function withChartVersion(source, version) {
+  return source
+    .replace(/^version:.*$/m, `version: ${version}`)
+    .replace(/^appVersion:.*$/m, `appVersion: "${version}"`);
+}
+
 async function check() {
   const expected = await rootVersion();
   const problems = [];
@@ -51,6 +67,15 @@ async function check() {
   const constant = /export const KESTREL_VERSION = "([^"]+)"/.exec(source)?.[1];
   if (constant !== expected) {
     problems.push(`packages/protocol/src/version.ts: ${constant ?? "missing"} (expected ${expected})`);
+  }
+  const chart = await chartVersions();
+  if (chart.version !== expected) {
+    problems.push(`deploy/helm/kestrel/Chart.yaml version: ${chart.version ?? "missing"} (expected ${expected})`);
+  }
+  if (chart.appVersion !== expected) {
+    problems.push(
+      `deploy/helm/kestrel/Chart.yaml appVersion: ${chart.appVersion ?? "missing"} (expected ${expected})`,
+    );
   }
   if (problems.length) {
     console.error(`Version drift detected. Run \`pnpm version:set ${expected}\`.\n`);
@@ -85,6 +110,9 @@ async function set(requested) {
   } else {
     await writeFile(sourcePath, next);
   }
+  const chartSource = await readFile(chartPath, "utf8");
+  const chartNext = withChartVersion(chartSource, requested);
+  if (chartNext !== chartSource) await writeFile(chartPath, chartNext);
   console.log(`Version set to ${requested}. Update CHANGELOG.md before tagging.`);
 }
 

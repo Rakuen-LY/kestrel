@@ -41,6 +41,14 @@ describe("version", () => {
     expect(KESTREL_VERSION).toBe(await rootVersion());
   });
 
+  it("matches the Helm chart", async () => {
+    const expected = await rootVersion();
+    const chart = await readFile(join(repoRoot, "deploy/helm/kestrel/Chart.yaml"), "utf8");
+    const field = (name: string) => new RegExp(`^${name}:\\s*"?([^"\\s]+)"?`, "m").exec(chart)?.[1];
+    expect(field("version")).toBe(expected);
+    expect(field("appVersion")).toBe(expected);
+  });
+
   it("matches every workspace package", async () => {
     const expected = await rootVersion();
     const drifted: string[] = [];

@@ -27,7 +27,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: kestrel
-          image: kestrel:latest
+          image: ghcr.io/rakuen-ly/kestrel:0.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

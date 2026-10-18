@@ -2,8 +2,11 @@ name: kestrel
 
 services:
   kestrel:
+    # `docker compose up -d` pulls the signed release; `--build` builds this
+    # checkout and tags it with the same name. Override KESTREL_IMAGE to pin
+    # another tag or digest.
+    image: ${KESTREL_IMAGE:-ghcr.io/rakuen-ly/kestrel:0.2.0}
     build: .
-    image: kestrel:local
     restart: unless-stopped
     ports:
       - "127.0.0.1:7331:7331"

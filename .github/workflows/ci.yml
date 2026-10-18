@@ -140,7 +140,22 @@ jobs:
           KESTREL_TOKEN: ci-token
         run: docker compose config --quiet
 
+      # Rendering the chart catches a template that only fails at `helm install`
+      # time, and kubeconform then checks the result against the same schemas as
+      # the plain manifests.
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: Lint and render the Helm chart
+        run: |
+          helm lint deploy/helm/kestrel
+          helm template kestrel deploy/helm/kestrel \
+            --set secret.create=true --set secret.token=ci-token \
+            > helm-rendered.yaml
+          test -s helm-rendered.yaml
+
       - name: Validate Kubernetes manifests
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
-          args: -strict -ignore-missing-schemas -summary deploy/k8s
+          args: -strict -ignore-missing-schemas -summary deploy/k8s helm-rendered.yaml

@@ -83,6 +83,27 @@ never contains agent logic.
 - Cross-tenant reads answer `404`, not `403`, so ids cannot be enumerated. Keep that convention for
   new session routes.
 
+## Release and deployment
+
+- One version lives in `packages/protocol/src/version.ts`; `pnpm version:set <v>` rewrites the
+  workspace manifests **and** `deploy/helm/kestrel/Chart.yaml` (`version` and `appVersion`).
+  `pnpm version:check` runs in CI and the release workflow, so drift fails fast.
+- A `v*` tag runs `.github/workflows/release.yml`: `verify` (tag ↔ version, tests, build, docs,
+  chart packaging) → `image` (buildx multi-arch, cosign keyless) → `publish` (GitHub release with
+  docs tarball, chart package, checksums). Nothing is published unless every gate passes on the
+  tagged commit.
+- Registry references must be lowercase. `${{ github.repository }}` keeps the owner's casing, and
+  cosign parses what it is given, so the workflow derives `IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}`
+  once. Docker's own client lowercases silently, which is why a push can succeed where signing then
+  fails.
+- The chart in `deploy/helm/kestrel` mirrors `deploy/k8s`. CI renders it with `helm template` and
+  validates the output with kubeconform alongside the plain manifests; `deploy/k8s` and
+  `compose.yaml` default to the published image, so a deploy needs no local build.
+- Docs deploy from `.github/workflows/docs.yml` to GitHub Pages; `DOCS_BASE` supplies the
+  `/kestrel/` prefix. Pages must have `build_type: workflow` (set once via the API).
+- Maintainers push to the mirror and relay to GitHub; no credential is stored in the repository or
+  its history.
+
 ## Gotchas
 
 - `apps/server/src/main.ts` exports `main()`; only `src/bin.ts` is an executable entry. Do not add a

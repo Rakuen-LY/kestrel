@@ -59,7 +59,7 @@ for what changed and why.
 | Integrations | Memory tools and a Model Context Protocol bridge |
 | Server | REST, SSE with resume, bearer auth, CORS, static console hosting, security headers |
 | Clients | Installable PWA console (sessions, streaming markdown, tool cards, approvals, plugins) and a full CLI |
-| Ops | Docker, Compose, Kubernetes, systemd, launchd, Windows Task Scheduler, health probes |
+| Ops | Signed Docker image, Compose, Kubernetes, Helm, systemd, launchd, Windows Task Scheduler, health probes |
 
 **Status: `0.2`, foundation-first.** The interfaces documented here are the ones intended to stay
 stable. The roadmap lists what is missing before `1.0`; multi-process operation and sandboxed
@@ -197,9 +197,10 @@ docs/                  VitePress documentation site
 | Target | Entry point |
 | --- | --- |
 | Local | `node apps/server/dist/bin.js` |
-| Docker | `docker build -t kestrel . && docker run -p 127.0.0.1:7331:7331 kestrel` |
-| Compose | `docker compose up -d --build` |
+| Docker | `docker run -p 127.0.0.1:7331:7331 ghcr.io/rakuen-ly/kestrel:0.2.0` |
+| Compose | `docker compose up -d` (add `--build` to build this checkout) |
 | Kubernetes | `kubectl apply -k deploy/k8s` |
+| Helm | `helm install kestrel deploy/helm/kestrel --set secret.create=true --set secret.token=...` |
 | Linux service | `deploy/systemd/kestrel.service` |
 | macOS | `deploy/launchd/dev.kestrel.agent.plist` |
 | Windows | `deploy/windows/install-task.ps1` |

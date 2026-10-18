@@ -1,0 +1,145 @@
+# Defaults render a single-replica, cluster-internal instance that matches
+# deploy/k8s. Everything below can be overridden with `--set` or a values file.
+
+image:
+  repository: ghcr.io/rakuen-ly/kestrel
+  # Defaults to .Chart.AppVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# The port inside the container. Change it only together with `config.server.port`.
+port: 7331
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 7331
+
+# SSE must not be buffered and runs can span minutes, so the nginx timeouts are
+# raised by default. Set `ingress.enabled: false` to front the Service yourself.
+ingress:
+  enabled: true
+  className: nginx
+  host: kestrel.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  tls:
+    enabled: true
+    secretName: kestrel-tls
+
+# KESTREL_TOKEN and provider keys are read from a Secret. Either point at one
+# you create out of band (recommended), or let the chart render it.
+secret:
+  existingSecret: kestrel-secrets
+  create: false
+  token: ""
+  openaiApiKey: ""
+  # Extra keys are copied into the Secret verbatim, e.g. DEEPSEEK_API_KEY.
+  extraEnv: {}
+
+# The whole kestrel.config.json. It is rendered with toPrettyJson, so any option
+# the server accepts can be set here.
+config:
+  name: Kestrel
+  server:
+    host: 0.0.0.0
+    port: 7331
+  model:
+    default: gpt-4o-mini
+    maxSteps: 60
+    temperature: 0.2
+  agent:
+    workspace: /workspace
+  plugins:
+    directories:
+      - plugins
+      - examples/plugins
+    config:
+      "@kestrel/plugin-tools-core":
+        restrictToWorkspace: true
+        shellPermission: ask
+        webPermission: ask
+  storage:
+    directory: /data
+
+persistence:
+  data:
+    enabled: true
+    # Use an existing claim instead of provisioning one.
+    existingClaim: ""
+    size: 5Gi
+    storageClass: ""
+  workspace:
+    enabled: true
+    existingClaim: ""
+    size: 20Gi
+    storageClass: ""
+
+# Transcripts, workspaces, accounts and plugins live on the volumes, so the
+# container filesystem can stay read-only. The shell tool needs a writable
+# /tmp for its own scratch space.
+readOnlyRootFilesystem: true
+
+# The runtime is single-process today: concurrent writes from two replicas would
+# duplicate sessions. Keep one and scale vertically.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+logLevel: info
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 10
+
+# Accounts mode and multi-tenant deployments need a bootstrap token once.
+extraEnv: []

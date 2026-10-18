@@ -12,25 +12,43 @@ the shapes we test and the operational details that are easy to get wrong.
 | Docker | Reproducible single node | Image includes git and curl for the shell tool. |
 | Compose | Local team instance | Token required, workspace and data mounted. |
 | Kubernetes | Shared internal deployment | Single replica today; see scaling. |
+| Helm | Kubernetes with per-environment values | Chart mirrors the kustomize base; `helm lint` runs in CI. |
 | systemd | Linux servers | Hardened unit included. |
 | launchd | macOS | Per-user agent, logs under `~/Library` or a shared path. |
 | Scheduled Task | Windows | Included PowerShell installer. |
 
 ## Docker
 
+The release workflow publishes a signed multi-architecture image:
+
 ```bash
-docker build -t kestrel .
+export KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.0
 docker run --rm -p 127.0.0.1:7331:7331 \
   -e KESTREL_TOKEN="$(openssl rand -hex 24)" \
   -e OPENAI_API_KEY=sk-... \
   -v "$PWD/workspace:/workspace" \
   -v kestrel-data:/data \
-  kestrel
+  "$KESTREL_IMAGE"
 ```
+
+Tags are `0.2.0`, the floating `0.2`, `latest` and `sha-<commit>`; the image covers `linux/amd64`
+and `linux/arm64`. Pin a version or a digest for anything long-lived — `latest` moves. Every tag is
+signed with cosign keyless signing, so provenance is checkable before you run it:
+
+```bash
+cosign verify ghcr.io/rakuen-ly/kestrel:0.2.0 \
+  --certificate-identity-regexp \
+    'https://github.com/Rakuen-LY/kestrel/.github/workflows/release.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+To build from a checkout instead, `docker build -t kestrel .` and substitute `kestrel` for
+`"$KESTREL_IMAGE"` in the commands on this page.
 
 The image runs as the unprivileged `node` user (uid 1000). `/workspace` is where tools operate;
 `/data` holds transcripts, accounts and per-tenant workspaces. Mount a project directory, never the
-Docker socket.
+Docker socket. `node --version` tells you which runtime the image ships; `/api/health` reports the
+same version as the tag, so a mismatch is visible immediately.
 
 ### Several users in one container
 
@@ -56,11 +74,13 @@ API. Tenants get their own workspace under `/data/tenants/<id>/workspace` unless
 cp .env.example .env
 # edit KESTREL_TOKEN and provider keys
 mkdir -p workspace
-docker compose up -d --build
+docker compose up -d          # pulls the published image
 docker compose logs -f kestrel
 ```
 
-Compose binds to `127.0.0.1` by default. Put a TLS-terminating proxy in front for remote access.
+`docker compose up -d --build` builds this checkout instead of pulling, tagging the result with the
+same name; `KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.0` pins a different tag or digest. Compose
+binds to `127.0.0.1` by default. Put a TLS-terminating proxy in front for remote access.
 
 ## Kubernetes
 
@@ -84,6 +104,35 @@ What the base sets:
 - `Recreate` strategy, because both PVCs are `ReadWriteOnce` and the in-memory event buffer is
   process-local.
 - Ingress annotations that disable proxy buffering and extend timeouts for SSE.
+
+### Helm
+
+`deploy/helm/kestrel` wraps the same objects as the kustomize base and exposes every setting as a
+value:
+
+```bash
+helm install kestrel deploy/helm/kestrel \
+  --namespace kestrel --create-namespace \
+  --set secret.create=true \
+  --set secret.token="$(openssl rand -hex 24)" \
+  --set ingress.host=kestrel.example.com
+```
+
+The chart is also packaged and attached to every release, so a cluster can install a pinned version
+without the checkout:
+
+```bash
+helm install kestrel \
+  https://github.com/Rakuen-LY/kestrel/releases/download/v0.2.0/kestrel-0.2.0.tgz \
+  --namespace kestrel --create-namespace \
+  --set secret.create=true --set secret.token="$(openssl rand -hex 24)"
+```
+
+By default the chart expects the `kestrel-secrets` Secret you created above
+(`secret.existingSecret`) and renders none of its own; `secret.create=true` inverts that and
+requires `secret.token`. `config` is the entire `kestrel.config.json`, `persistence.*` sizes the two
+claims, and `image.tag` defaults to the chart's `appVersion`, so a chart release and its image move
+together. CI runs `helm lint` and validates the rendered output with kubeconform on every change.
 
 ### Scaling
 

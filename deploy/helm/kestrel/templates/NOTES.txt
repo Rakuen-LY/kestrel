@@ -1,0 +1,27 @@
+{{- if not .Values.secret.create }}
+1. Create the credentials Secret (it is not managed by this release):
+
+   kubectl -n {{ .Release.Namespace }} create secret generic {{ .Values.secret.existingSecret }} \
+     --from-literal=KESTREL_TOKEN="$(openssl rand -hex 24)" \
+     --from-literal=OPENAI_API_KEY="sk-..."
+
+   Or, to let the chart render it, install with
+   --set secret.create=true --set secret.token="$(openssl rand -hex 24)".
+{{- end }}
+
+2. Kestrel is not exposed publicly by default. Watch it start:
+
+   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "kestrel.fullname" . }}
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kestrel.fullname" . }} 7331:{{ .Values.service.port }}
+
+   Then open http://127.0.0.1:7331 and paste the token.
+
+{{- if .Values.ingress.enabled }}
+
+3. The Ingress expects host {{ .Values.ingress.host }} and
+   {{ if .Values.ingress.tls.enabled }}TLS secret {{ .Values.ingress.tls.secretName }}{{ else }}no TLS{{ end }}.
+   Point DNS at the ingress controller before relying on it; SSE needs the
+   buffering annotations this chart already sets.
+{{- end }}
+
+Runbook: https://rakuen-ly.github.io/kestrel/guide/deployment
