@@ -126,6 +126,10 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   const approvals = new ApprovalBroker(config.approvals.timeoutMs ?? 15 * 60_000, logger);
   const workspace = resolveWorkspace(config);
   const dataDirectory = resolveDataDirectory(config);
+  context.provide("storage", {
+    directory: dataDirectory,
+    resolve: (...parts: string[]) => join(dataDirectory, ...parts),
+  });
   const auth = await createAuthService(config, dataDirectory);
   const checkpoints = new CheckpointService({
     directory: dataDirectory,

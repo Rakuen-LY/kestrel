@@ -1,0 +1,24 @@
+{
+  "name": "@kestrel/plugin-audit",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Append-only JSONL audit trail for tool calls, runs and approvals.",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kestrel/agent": "workspace:*",
+    "@kestrel/kernel": "workspace:*",
+    "@kestrel/protocol": "workspace:*"
+  }
+}

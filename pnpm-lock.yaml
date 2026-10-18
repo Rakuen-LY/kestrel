@@ -119,6 +119,18 @@ importers:
 
   packages/protocol: {}
 
+  plugins/audit:
+    dependencies:
+      '@kestrel/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@kestrel/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@kestrel/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+
   plugins/context:
     dependencies:
       '@kestrel/agent':

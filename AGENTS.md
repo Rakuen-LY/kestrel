@@ -138,6 +138,10 @@ never contains agent logic.
   workspace read-write at the same absolute path, run with the server UID on POSIX, and default to
   `--network none`. Killing the Docker CLI does not stop a container, so timeouts and aborts run
   `docker rm -f <name>` as well.
+- Audit logs hash tool arguments and never store output. Listener writes are queued; tests read
+  through the route handler (which awaits the queue) instead of racing the file. The plugin needs
+  the `storage` service, so keep it injected in `kestrel.plugin.json` and provide it in any test
+  harness that applies the plugin directly.
 - Token usage is cumulative per session in `AgentSession._usage`; it is updated right after every
   model and compaction response (not in `finally`) so the final `session.updated` and persisted
   `detail()` already include the run that just finished. `SessionManager.sessionOptions` must

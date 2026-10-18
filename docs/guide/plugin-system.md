@@ -132,6 +132,7 @@ a feature.
 | `memory` | `@kestrel/plugin-memory` | Durable workspace notes. |
 | `mcp` | `@kestrel/plugin-mcp` | Connected MCP servers and their tools. |
 | `subagents` | `@kestrel/plugin-subagents` | Delegation roles and the running subagent set. |
+| `storage` | `@kestrel/server` | Data directory and path helper for plugin-owned files. |
 | `http.routes` | `@kestrel/server` | Register extra JSON endpoints under `/api/`. |
 | `sandbox` | `@kestrel/plugin-sandbox-docker` | Optional command executor; the shell tool uses it when present. |
 

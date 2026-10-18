@@ -1,0 +1,15 @@
+{
+  "name": "@kestrel/plugin-audit",
+  "version": "0.1.0",
+  "description": "Append-only JSONL audit trail for tool calls, runs and approvals.",
+  "entry": "dist/index.js",
+  "inject": ["sessions", "http.routes", "storage"],
+  "config": {
+    "enabled": true,
+    "includeTools": true,
+    "includeRuns": true,
+    "includeApprovals": true,
+    "maxBytes": 10485760,
+    "maxFiles": 3
+  }
+}
