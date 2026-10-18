@@ -197,7 +197,7 @@ docs/                  VitePress documentation site
 | Target | Entry point |
 | --- | --- |
 | Local | `node apps/server/dist/bin.js` |
-| Docker | `docker run -p 127.0.0.1:7331:7331 ghcr.io/rakuen-ly/kestrel:0.2.0` |
+| Docker | `docker run -p 127.0.0.1:7331:7331 ghcr.io/rakuen-ly/kestrel:0.2.1` |
 | Compose | `docker compose up -d` (add `--build` to build this checkout) |
 | Kubernetes | `kubectl apply -k deploy/k8s` |
 | Helm | `helm install kestrel deploy/helm/kestrel --set secret.create=true --set secret.token=...` |

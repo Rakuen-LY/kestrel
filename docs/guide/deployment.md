@@ -22,7 +22,7 @@ the shapes we test and the operational details that are easy to get wrong.
 The release workflow publishes a signed multi-architecture image:
 
 ```bash
-export KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.0
+export KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.1
 docker run --rm -p 127.0.0.1:7331:7331 \
   -e KESTREL_TOKEN="$(openssl rand -hex 24)" \
   -e OPENAI_API_KEY=sk-... \
@@ -31,12 +31,12 @@ docker run --rm -p 127.0.0.1:7331:7331 \
   "$KESTREL_IMAGE"
 ```
 
-Tags are `0.2.0`, the floating `0.2`, `latest` and `sha-<commit>`; the image covers `linux/amd64`
+Tags are `0.2.1`, the floating `0.2`, `latest` and `sha-<commit>`; the image covers `linux/amd64`
 and `linux/arm64`. Pin a version or a digest for anything long-lived — `latest` moves. Every tag is
 signed with cosign keyless signing, so provenance is checkable before you run it:
 
 ```bash
-cosign verify ghcr.io/rakuen-ly/kestrel:0.2.0 \
+cosign verify ghcr.io/rakuen-ly/kestrel:0.2.1 \
   --certificate-identity-regexp \
     'https://github.com/Rakuen-LY/kestrel/.github/workflows/release.yml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
@@ -79,7 +79,7 @@ docker compose logs -f kestrel
 ```
 
 `docker compose up -d --build` builds this checkout instead of pulling, tagging the result with the
-same name; `KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.0` pins a different tag or digest. Compose
+same name; `KESTREL_IMAGE=ghcr.io/rakuen-ly/kestrel:0.2.1` pins a different tag or digest. Compose
 binds to `127.0.0.1` by default. Put a TLS-terminating proxy in front for remote access.
 
 ## Kubernetes
@@ -123,7 +123,7 @@ without the checkout:
 
 ```bash
 helm install kestrel \
-  https://github.com/Rakuen-LY/kestrel/releases/download/v0.2.0/kestrel-0.2.0.tgz \
+  https://github.com/Rakuen-LY/kestrel/releases/download/v0.2.1/kestrel-0.2.1.tgz \
   --namespace kestrel --create-namespace \
   --set secret.create=true --set secret.token="$(openssl rand -hex 24)"
 ```

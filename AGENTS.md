@@ -86,8 +86,10 @@ never contains agent logic.
 ## Release and deployment
 
 - One version lives in `packages/protocol/src/version.ts`; `pnpm version:set <v>` rewrites the
-  workspace manifests **and** `deploy/helm/kestrel/Chart.yaml` (`version` and `appVersion`).
-  `pnpm version:check` runs in CI and the release workflow, so drift fails fast.
+  workspace manifests, `deploy/helm/kestrel/Chart.yaml` (`version` and `appVersion`) and the release
+  pins readers copy (`README.md`, `compose.yaml`, `deploy/k8s/deployment.yaml`,
+  `docs/guide/deployment.md`). `pnpm version:check` runs in CI and the release workflow, so drift
+  fails fast.
 - A `v*` tag runs `.github/workflows/release.yml`: `verify` (tag ↔ version, tests, build, docs,
   chart packaging) → `image` (buildx multi-arch, cosign keyless) → `publish` (GitHub release with
   docs tarball, chart package, checksums). Nothing is published unless every gate passes on the

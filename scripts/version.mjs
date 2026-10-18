@@ -10,6 +10,8 @@ import { withVersion } from "./lib/changelog.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const chartPath = join(repoRoot, "deploy/helm/kestrel/Chart.yaml");
+/** Files that name a concrete release in a command the reader will copy. */
+const pinnedPaths = ["README.md", "compose.yaml", "deploy/k8s/deployment.yaml", "docs/guide/deployment.md"];
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 async function manifestPaths() {
@@ -49,6 +51,24 @@ async function chartVersions() {
   };
 }
 
+function replacePins(source, version) {
+  return source
+    .replace(/ghcr\.io\/rakuen-ly\/kestrel:\d+\.\d+\.\d+/g, `ghcr.io/rakuen-ly/kestrel:${version}`)
+    .replace(/kestrel-\d+\.\d+\.\d+\.tgz/g, `kestrel-${version}.tgz`)
+    .replace(/releases\/download\/v\d+\.\d+\.\d+/g, `releases/download/v${version}`)
+    .replace(/Tags are `\d+\.\d+\.\d+`/g, `Tags are \`${version}\``);
+}
+
+/** A pin is current when substituting the expected version changes nothing. */
+async function stalePins(version) {
+  const stale = [];
+  for (const relative of pinnedPaths) {
+    const source = await readFile(join(repoRoot, relative), "utf8");
+    if (replacePins(source, version) !== source) stale.push(relative);
+  }
+  return stale;
+}
+
 function withChartVersion(source, version) {
   return source
     .replace(/^version:.*$/m, `version: ${version}`)
@@ -62,6 +82,9 @@ async function check() {
   for (const path of await manifestPaths()) {
     const pkg = await readManifest(path);
     if (pkg.version !== expected) problems.push(`${pkg.name}: ${pkg.version ?? "missing"} (expected ${expected})`);
+  }
+  for (const relative of await stalePins(expected)) {
+    problems.push(`${relative}: pinned release is not ${expected}`);
   }
   const source = await readFile(join(repoRoot, "packages/protocol/src/version.ts"), "utf8");
   const constant = /export const KESTREL_VERSION = "([^"]+)"/.exec(source)?.[1];
@@ -109,6 +132,12 @@ async function set(requested) {
     }
   } else {
     await writeFile(sourcePath, next);
+  }
+  for (const relative of pinnedPaths) {
+    const path = join(repoRoot, relative);
+    const source = await readFile(path, "utf8");
+    const next = replacePins(source, requested);
+    if (next !== source) await writeFile(path, next);
   }
   const chartSource = await readFile(chartPath, "utf8");
   const chartNext = withChartVersion(chartSource, requested);

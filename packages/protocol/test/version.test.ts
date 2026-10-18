@@ -49,6 +49,19 @@ describe("version", () => {
     expect(field("appVersion")).toBe(expected);
   });
 
+  it("pins the current release where readers copy it", async () => {
+    const expected = await rootVersion();
+    const pinned = ["README.md", "compose.yaml", "deploy/k8s/deployment.yaml", "docs/guide/deployment.md"];
+    const stale: string[] = [];
+    for (const relative of pinned) {
+      const source = await readFile(join(repoRoot, relative), "utf8");
+      for (const match of source.matchAll(/ghcr\.io\/rakuen-ly\/kestrel:(\d+\.\d+\.\d+)/g)) {
+        if (match[1] !== expected) stale.push(`${relative}: ${match[1]}`);
+      }
+    }
+    expect(stale).toEqual([]);
+  });
+
   it("matches every workspace package", async () => {
     const expected = await rootVersion();
     const drifted: string[] = [];
