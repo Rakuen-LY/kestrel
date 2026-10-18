@@ -104,7 +104,10 @@ never contains agent logic.
 - Docs deploy from `.github/workflows/docs.yml` to GitHub Pages; `DOCS_BASE` supplies the
   `/kestrel/` prefix. Pages must have `build_type: workflow` (set once via the API).
 - Maintainers push to the mirror and relay to GitHub; no credential is stored in the repository or
-  its history.
+  its history. When `github.com:443` is unreachable but `api.github.com` answers, a commit can be
+  published through the REST API (blobs → tree → commit → ref) as long as the author and committer
+  dates are reused verbatim; the resulting SHA matches the local one, so no reconciliation is
+  needed afterwards.
 
 ## Gotchas
 
