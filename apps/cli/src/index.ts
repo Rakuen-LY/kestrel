@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin, stdout } from "node:process";
 import { parseArgs } from "node:util";
@@ -15,7 +17,7 @@ import {
   type UserRecord,
 } from "@kestrel/server";
 import { isSessionGuardError } from "@kestrel/agent";
-import { SkillCatalog } from "@kestrel/plugin-skills";
+import { SkillCatalog, lintSkills, normalizeName, scaffoldSkill } from "@kestrel/plugin-skills";
 import type { ServerEventEnvelope } from "@kestrel/protocol";
 
 const HELP = `Kestrel — plugin-first agent platform
@@ -28,6 +30,8 @@ Usage:
   kestrel models
   kestrel sessions [resume <id>] [rewind <id> <messageId>]
   kestrel skills [show <name>]
+  kestrel skills lint
+  kestrel skills new <name> [--description D] [--when W]
   kestrel checkpoints [list <session>] [create <session> [--label L]]
                       [restore <session> <checkpoint>]
   kestrel tenants [create <name>]
@@ -65,6 +69,8 @@ async function main(): Promise<void> {
       tenant: { type: "string" },
       email: { type: "string" },
       label: { type: "string" },
+      description: { type: "string" },
+      when: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -213,6 +219,58 @@ async function main(): Promise<void> {
         stdout.write(`${color.bold(skill.name)}  ${color.dim(`${skill.bytes} bytes · ${skill.path}`)}\n\n${skill.body}\n`);
         if (skill.truncated) stdout.write(color.yellow(`\n(truncated by the maxSkillBytes policy)\n`));
       }
+      return;
+    }
+
+    if (subcommand === "lint") {
+      const result = lintSkills(workspace, skillsConfig);
+      if (values.json) {
+        stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        if (result.errors > 0) process.exitCode = 1;
+        return;
+      }
+      for (const report of result.reports) {
+        if (report.issues.length === 0) continue;
+        stdout.write(`${color.bold(report.name ?? report.path)}\n`);
+        for (const issue of report.issues) {
+          const label = issue.level === "error" ? color.red("error") : color.yellow("warning");
+          stdout.write(`  ${label} ${color.dim(issue.code)}  ${issue.message}\n`);
+        }
+      }
+      const checked = result.reports.length;
+      const summary = `${checked} skill${checked === 1 ? "" : "s"} checked: ${result.errors} error${result.errors === 1 ? "" : "s"}, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}.`;
+      stdout.write(result.errors > 0 ? color.red(summary) : color.green(summary));
+      stdout.write("\n");
+      if (result.errors > 0) process.exitCode = 1;
+      return;
+    }
+
+    if (subcommand === "new") {
+      const input = positionals[2];
+      if (!input) {
+        stdout.write(color.red("Usage: kestrel skills new <name> [--description D] [--when W]\n"));
+        process.exitCode = 2;
+        return;
+      }
+      const name = normalizeName(input);
+      const directory = skillsConfig.directories?.[0] ?? "skills";
+      const target = resolve(workspace, directory, name, "SKILL.md");
+      const inside = relative(resolve(workspace), target);
+      if (inside.startsWith("..") || isAbsolute(inside) || !name) {
+        stdout.write(color.red(`"${input}" is not a valid skill name.\n`));
+        process.exitCode = 2;
+        return;
+      }
+      if (existsSync(target)) {
+        stdout.write(color.red(`${target} already exists; edit it instead.\n`));
+        process.exitCode = 1;
+        return;
+      }
+      const markdown = scaffoldSkill(name, (values.description as string | undefined) ?? "", values.when as string | undefined);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, markdown, "utf8");
+      stdout.write(`${color.green("Created")} ${target}\n`);
+      stdout.write(color.dim(`Edit the body, then run \`kestrel skills lint\`.\n`));
       return;
     }
 

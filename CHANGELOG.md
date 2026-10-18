@@ -8,6 +8,11 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Skill authoring: `kestrel skills lint` validates every candidate file — missing `SKILL.md`,
+  invalid or duplicate names, empty bodies, escaping symlinks, oversized files and frontmatter
+  drift — with `--json` output and exit code `1` on errors. `kestrel skills new` scaffolds a
+  kebab-cased `skills/<name>/SKILL.md` and never overwrites an existing one. The checks live in
+  `@kestrel/plugin-skills` as `lintSkills` and `scaffoldSkill`.
 - `@kestrel/plugin-browser`: eight headless-Chromium tools (`browser_open`, `browser_snapshot`,
   `browser_click`, `browser_type`, `browser_scroll`, `browser_back`, `browser_screenshot`,
   `browser_close`) plus a `browser` service for other plugins. It speaks Chrome DevTools Protocol

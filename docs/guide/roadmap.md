@@ -78,8 +78,9 @@ See [Plugin UI](/guide/plugin-ui).
   ~~sampling~~ ships opt-in with per-call budgets, elicitation remains; see [MCP](/guide/mcp).
 - ~~Context compaction and summarisation for long sessions~~ — shipped; see
   [Long sessions](/guide/models#long-sessions-and-compaction).
-- Skill authoring UX: a `kestrel skills` command to list, lint and scaffold procedures. Discovery
-  and progressive loading ship in `@kestrel/plugin-skills`; see [Skills](/guide/skills).
+- ~~Skill authoring UX~~ — `kestrel skills` lists and shows procedures, `skills lint` validates
+  files (including the ones the runtime would skip) and `skills new` scaffolds them; see
+  [Skills](/guide/skills).
 - ~~Multimodal user messages~~ — images ship in the console and the API; see
   [Images](/guide/models#images). Still missing: image-producing tools and attachments on tool
   results.

@@ -9,6 +9,8 @@ export type SkillsConfig = SkillCatalogOptions & {
 
 export { SkillCatalog, parseSkill, normalizeName } from "./catalog.js";
 export type { ParsedSkill, Skill, SkillCatalogOptions, SkillService, SkillSummary } from "./catalog.js";
+export { lintSkills, scaffoldSkill } from "./lint.js";
+export type { LintIssue, LintLevel, LintResult, SkillLintReport } from "./lint.js";
 
 const TOOL_NAME = "use_skill";
 const LAYER_ORDER = 60;

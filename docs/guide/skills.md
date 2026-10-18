@@ -62,6 +62,41 @@ structure they like.
 A copyable example lives in
 [`examples/skills/release-checklist`](https://github.com/kestrel-dev/kestrel/tree/main/examples/skills/release-checklist).
 
+## Authoring and linting
+
+`kestrel skills new` writes a scaffold into the first configured directory:
+
+```bash
+kestrel skills new release-checklist \
+  --description "Publish a release safely." \
+  --when "cutting a tag" \
+  --workspace /srv/app
+```
+
+The name is normalized to kebab-case, an existing file is never overwritten, and the generated
+frontmatter plus body pass `kestrel skills lint` unchanged.
+
+`kestrel skills lint` checks every candidate file, including ones the runtime would silently skip.
+It exits `1` when there is at least one error, which makes it usable in CI.
+
+| Code | Level | Meaning |
+| --- | --- | --- |
+| `workspace-missing` | error | The workspace path does not exist. |
+| `directory-escape` | error | A configured directory resolves outside the workspace. |
+| `file-missing` | error | A skill directory has no `SKILL.md`. |
+| `path-escape` | error | The file resolves outside the workspace, for example through a symlink. |
+| `empty-body` | error | Frontmatter exists but nothing follows it. |
+| `name-invalid` | error | The normalized name does not match `[a-z0-9][a-z0-9._-]*`. |
+| `duplicate-name` | error | Two files claim the same skill; only the first is loaded. |
+| `no-frontmatter` | warning | Name and description are inferred from the path and first line. |
+| `no-description` | warning | The prompt will use the first body line. |
+| `name-mismatch` | warning | Directory/file name and frontmatter `name` disagree. |
+| `name-normalized` | warning | The raw name was rewritten to kebab-case. |
+| `description-long` | warning | The prompt truncates descriptions at 240 characters. |
+| `too-large` | warning | The runtime reads only `maxSkillBytes`. |
+
+`--json` emits the full report (`workspace`, per-file `issues`, counts) for other tools.
+
 ## The `use_skill` tool
 
 | Argument | Behaviour |
