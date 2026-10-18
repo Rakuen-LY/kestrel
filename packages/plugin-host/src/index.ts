@@ -275,7 +275,24 @@ export class PluginHost implements PluginService {
       }
       css.push(asset);
     }
-    return css.length > 0 ? { entry, css } : { entry };
+    const api = Array.isArray(declared.api)
+      ? declared.api.filter((grant): grant is string => {
+          if (typeof grant !== "string") return false;
+          const parts = grant.trim().split(/\s+/);
+          if (parts.length !== 2) return false;
+          const [method, path] = parts;
+          const valid = method === "*" || /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/i.test(method);
+          return valid && path.startsWith("/api/");
+        })
+      : undefined;
+    if (Array.isArray(declared.api) && api && api.length !== declared.api.length) {
+      this.options.logger.warn("plugin web api grant ignored", { plugin: manifest.name });
+    }
+    return {
+      entry,
+      ...(css.length > 0 ? { css } : {}),
+      ...(api ? { api } : {}),
+    };
   }
 
   private checkAllowed(): void {

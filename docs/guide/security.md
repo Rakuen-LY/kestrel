@@ -107,8 +107,9 @@ outside the sandbox.
 - The sandbox allows scripts and styles from the API origin only; there is no CDN or remote font
   access.
 - Each extension gets its own iframe, and discovery runs the bundle once more. Keep bundles small.
-- Per-plugin API capability grants are a roadmap item; today the proxy exposes the same routes the
-  user can call.
+- Route grants default to read-only `/api/**`; mutating routes must be declared in `web.api`, and
+  `[]` denies everything. A granted route still runs with the user's authority, so grants reduce the
+  blast radius rather than make an untrusted bundle safe.
 
 There is no plugin signature or registry yet. That is a roadmap item; until then, review the code.
 

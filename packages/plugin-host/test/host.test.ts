@@ -61,6 +61,24 @@ describe("PluginHost browser contributions", () => {
     expect((await instance.discover())[0].web).toEqual({ entry: "panel.js" });
   });
 
+  it("keeps valid api grants and drops malformed ones", async () => {
+    const root = await makeWebPlugin({
+      entry: "panel.js",
+      api: ["GET /api/sessions", "get /api/plugins", "* /api/tools", 42, "GET /etc/passwd", "/api/x"],
+    });
+    const { host: instance } = host(root);
+    expect((await instance.discover())[0].web).toEqual({
+      entry: "panel.js",
+      api: ["GET /api/sessions", "get /api/plugins", "* /api/tools"],
+    });
+  });
+
+  it("keeps an explicit empty grant list", async () => {
+    const root = await makeWebPlugin({ entry: "panel.js", api: [] });
+    const { host: instance } = host(root);
+    expect((await instance.discover())[0].web).toEqual({ entry: "panel.js", api: [] });
+  });
+
   it("ignores entries that point outside web/ or do not exist", async () => {
     for (const web of ["../panel.js", { entry: "/etc/passwd" }, { entry: "missing.js" }, 42]) {
       const root = await makeWebPlugin(web);

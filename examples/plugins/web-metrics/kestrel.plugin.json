@@ -3,5 +3,9 @@
   "version": "0.1.0",
   "description": "Demonstrates a browser contribution: session metrics in the console sidebar and settings.",
   "entry": "index.js",
-  "web": { "entry": "panel.js", "css": ["panel.css"] }
+  "web": {
+    "entry": "panel.js",
+    "css": ["panel.css"],
+    "api": ["GET /api/sessions", "GET /api/plugins"]
+  }
 }

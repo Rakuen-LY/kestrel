@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KestrelApi } from "../api.js";
 import { themeVariables, type LoadedExtension, type SlotName } from "../extensions.js";
+import { apiAllowed } from "../grants.js";
 
 export function PluginSlot({
   slot,
@@ -112,6 +113,16 @@ function PluginFrame({
       } else if (data.type === "kestrel:request" && typeof data.id === "number") {
         if (typeof data.path !== "string") return;
         const init = (data.init ?? {}) as RequestInit;
+        const method = typeof init.method === "string" ? init.method : "GET";
+        if (!apiAllowed(extension.api, method, data.path)) {
+          send({
+            type: "kestrel:response",
+            id: data.id,
+            ok: false,
+            error: `Plugin ${extension.plugin.id} is not granted ${method.toUpperCase()} ${data.path}.`,
+          });
+          return;
+        }
         api
           .request(data.path, init)
           .then((result) => send({ type: "kestrel:response", id: data.id, ok: true, data: result }))

@@ -17,7 +17,11 @@ Add `web` to the manifest and put the files under `web/`:
   "name": "@acme/plugin-metrics",
   "version": "0.1.0",
   "entry": "index.js",
-  "web": { "entry": "panel.js", "css": ["panel.css"] }
+  "web": {
+    "entry": "panel.js",
+    "css": ["panel.css"],
+    "api": ["GET /api/sessions", "GET /api/plugins"]
+  }
 }
 ```
 
@@ -86,6 +90,29 @@ parent and is **not** exposed to the bundle. Only `method`, plain `headers` and 
 the boundary; streams, `FormData` and `AbortSignal` do not. The promise resolves with parsed JSON,
 and non-2xx responses reject with the API message.
 
+### API grants
+
+A bundle must declare which API routes it may call through the proxy. Grants are
+`"METHOD /api/path"` strings; `*` matches one path segment and `**` matches the rest:
+
+```json
+{
+  "web": {
+    "entry": "panel.js",
+    "api": ["GET /api/sessions", "GET /api/sessions/*", "POST /api/sessions/*/messages"]
+  }
+}
+```
+
+- Omit `api` for **read-only** access to `/api/**`; use `[]` to deny every request.
+- Matching is method-aware and case-insensitive for the method.
+- Paths are normalised before matching, and `.`/`..` or encoded traversal is rejected.
+- Asset URLs are never proxied; only `/api/...` calls cross the bridge.
+
+Requests outside the grant list fail with `Plugin <id> is not granted <METHOD> <path>.` The check
+runs in the parent, after the plugin has handed over the call, so a compromised bundle cannot widen
+its own grants. Discovery runs cannot call the API at all.
+
 `mount` receives an empty element inside the iframe. Build whatever DOM you need; return a function
 to release timers, listeners or observers. The iframe resizes to the content's height, so avoid
 `position: fixed` layers and full-viewport layouts.
@@ -133,10 +160,11 @@ The sandbox document is served by the Kestrel API at `/plugin-sandbox.html` and 
 - No form submission. API access happens exclusively through the parent's `request` proxy, which
   attaches the token after the call leaves the sandbox.
 
-This prevents token theft and page tampering. It is **not** a capability system: a plugin can still
-call every API route the signed-in user can call, spend model tokens, create sessions and read the
-workspace through the API. Review bundles like server-side plugins, and use `plugins.allow` when the
-plugin directory is not fully trusted. Per-plugin route grants are a roadmap item.
+This prevents token theft and page tampering. Route grants narrow the API surface further: by
+default a bundle can only read, and mutating routes must be declared in the manifest. Grants are
+still not a sandbox for a malicious plugin: every granted route runs with the signed-in user's
+authority, so review bundles like server-side plugins and use `plugins.allow` when the plugin
+directory is not fully trusted.
 
 The console and the API may live on different origins (a static console deployment, or the Vite dev
 server). The sandbox is always served by the API origin; plugin assets are public and CORS-enabled,

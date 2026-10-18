@@ -46,6 +46,8 @@ export interface LoadedExtension extends ExtensionContribution {
   endpoint: string;
   entry: string;
   css: string[];
+  /** API routes this bundle may call through the proxy. */
+  api?: string[];
 }
 
 export interface ExtensionError {
@@ -99,6 +101,7 @@ export async function loadConsoleExtensions(
           endpoint: api.endpoint,
           entry,
           css,
+          ...(plugin.web.api ? { api: plugin.web.api } : {}),
         });
       }
     } catch (error) {
@@ -144,7 +147,9 @@ async function discover(input: DiscoveryInput): Promise<ExtensionContribution[]>
     );
     const onMessage = (event: MessageEvent): void => {
       if (event.source !== frame.contentWindow) return;
-      const data = event.data as { type?: string; extensions?: unknown; message?: unknown } | undefined;
+      const data = event.data as
+        | { type?: string; extensions?: unknown; message?: unknown; id?: unknown }
+        | undefined;
       if (!data || typeof data !== "object") return;
       if (data.type === "kestrel:ready") {
         frame.contentWindow?.postMessage(
@@ -156,6 +161,16 @@ async function discover(input: DiscoveryInput): Promise<ExtensionContribution[]>
             entry: input.entry,
             css: input.css,
             theme: themeVariables(),
+          },
+          "*",
+        );
+      } else if (data.type === "kestrel:request" && typeof data.id === "number") {
+        frame.contentWindow?.postMessage(
+          {
+            type: "kestrel:response",
+            id: data.id,
+            ok: false,
+            error: "The API is not available while the bundle is being discovered.",
           },
           "*",
         );

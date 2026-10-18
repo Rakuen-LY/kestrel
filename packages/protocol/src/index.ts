@@ -196,6 +196,12 @@ export interface PluginWeb {
   entry: string;
   /** Stylesheets injected before the module runs. */
   css?: string[];
+  /**
+   * API grants for the bundle, e.g. `"GET /api/sessions"`. `*` matches one
+   * path segment and `**` matches the rest. Omitted means read-only access to
+   * `/api/**`; an empty array denies every request.
+   */
+  api?: string[];
 }
 
 export interface PluginInfo {

@@ -39,7 +39,8 @@ Bundles load into three slots (`sidebar.footer`, `session.header`, `settings.sec
 plugin's `web/` directory, each in a sandboxed iframe with an opaque origin and a proxied API. The
 remaining work is about capability, not isolation:
 
-- Per-plugin route grants, so a bundle can be limited to, say, `/api/sessions` reads.
+- ~~Per-plugin route grants~~ — `web.api` defaults to read-only and mutating routes must be
+  declared; the proxy rejects anything else.
 - More slots: message renderer, composer actions, file viewer.
 - A dev channel that reloads a bundle without a page refresh.
 

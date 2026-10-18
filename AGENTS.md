@@ -183,3 +183,6 @@ never contains agent logic.
   messages, height reports, and proxied `request` calls. Never import bundles into the console
   origin; the bearer token lives only in the parent. Plugin CSS vars are copied on mount and on
   `prefers-color-scheme` changes. The console CSP needs `frame-src *` for cross-origin deployments.
+- Plugin UI API calls are default-deny beyond read-only `GET /api/**`; `web.api` grants are checked
+  in the parent proxy after URL normalisation, so never forward a raw plugin path without calling
+  `apiAllowed` first. `api: []` means no API access at all.
