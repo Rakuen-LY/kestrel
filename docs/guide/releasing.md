@@ -54,7 +54,8 @@ changelog under **Changed**, and the previous minor line keeps receiving fixes.
    ```
 
 Everything after that push is automatic. The workflow derives the image name from the repository
-(`ghcr.io/<owner>/<repo>`), takes its registry credential from `GITHUB_TOKEN`, and signs the image
+(`ghcr.io/<owner>/<repo>`, lowercased — registry paths are case-sensitive), takes its registry
+credential from `GITHUB_TOKEN`, and signs the image
 with GitHub's OIDC identity, so there is nothing to configure and no repository secret to rotate.
 
 5. **Watch the release workflow**, then verify the published image (see below).

@@ -1,6 +1,12 @@
 # Kestrel
 
+[![CI](https://github.com/Rakuen-LY/kestrel/actions/workflows/ci.yml/badge.svg)](https://github.com/Rakuen-LY/kestrel/actions/workflows/ci.yml)
+[![Docs](https://github.com/Rakuen-LY/kestrel/actions/workflows/docs.yml/badge.svg)](https://rakuen-ly.github.io/kestrel/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **A plugin-first agent platform. Run agents anywhere, drive them from anywhere.**
+
+Documentation: **<https://rakuen-ly.github.io/kestrel/>**
 
 Kestrel is a TypeScript platform for running coding agents as a long-lived service. A small kernel
 provides services, lifetimes and events. A headless agent runtime provides sessions, runs, tools and
@@ -55,7 +61,7 @@ for what changed and why.
 | Clients | Installable PWA console (sessions, streaming markdown, tool cards, approvals, plugins) and a full CLI |
 | Ops | Docker, Compose, Kubernetes, systemd, launchd, Windows Task Scheduler, health probes |
 
-**Status: `0.1`, foundation-first.** The interfaces documented here are the ones intended to stay
+**Status: `0.2`, foundation-first.** The interfaces documented here are the ones intended to stay
 stable. The roadmap lists what is missing before `1.0`; multi-process operation and sandboxed
 execution are explicitly not done yet.
 

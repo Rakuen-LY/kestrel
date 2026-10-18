@@ -164,6 +164,9 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Fixed
 
+- Release images are published and signed at the lowercased repository path. `github.repository`
+  keeps the owner's casing, and cosign refused the mixed-case reference after the image had already
+  been pushed.
 - The Docker sandbox waited for `docker rm -f` before `exec` settled. The removal process was
   spawned and unref'd, so a timeout or abort could resolve while the container was still being
   deleted — and a caller that dropped its workspace immediately raced the removal, which surfaced
