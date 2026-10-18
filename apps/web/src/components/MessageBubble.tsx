@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ChatMessage, ToolCall, ToolResult } from "@kestrel/protocol";
 import { imageSrc } from "../images.js";
 import { Markdown } from "./Markdown.js";
@@ -19,6 +19,7 @@ export function MessageBubble({
   streaming,
   onRewind,
   rewindDisabled,
+  extensionSlot,
 }: {
   message: ChatMessage;
   calls?: ToolCall[];
@@ -26,6 +27,8 @@ export function MessageBubble({
   streaming?: boolean;
   onRewind?: () => void;
   rewindDisabled?: boolean;
+  /** Slot contributions rendered after the message body. */
+  extensionSlot?: ReactNode;
 }) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -120,6 +123,7 @@ export function MessageBubble({
             <span />
           </div>
         )}
+        {extensionSlot}
         {streaming && message.content && <span className="caret" />}
       </div>
     </article>

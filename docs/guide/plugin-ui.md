@@ -1,8 +1,8 @@
 # Plugin UI
 
 "Everything is a plugin" should include the interface. A plugin can ship a small ESM bundle that
-adds a sidebar summary, a settings section or a session header, without forking the console or
-depending on its React internals.
+adds a sidebar summary, a settings section, a session header, content after a message or an action
+under the composer, without forking the console or depending on its React internals.
 
 Bundles run in a sandboxed iframe, not in the console's origin. This page covers the contract, the
 slots and the trust boundary. The worked example is
@@ -20,7 +20,8 @@ Add `web` to the manifest and put the files under `web/`:
   "web": {
     "entry": "panel.js",
     "css": ["panel.css"],
-    "api": ["GET /api/sessions", "GET /api/plugins"]
+    "api": ["GET /api/sessions", "GET /api/plugins"],
+    "capabilities": ["composer.submit"]
   }
 }
 ```
@@ -74,13 +75,30 @@ interface ConsoleContext {
   plugin: { id: string; name: string; version: string };
   endpoint: string;                                  // absolute API origin
   sessionId?: string;                                // set for session slots
+  payload: Record<string, unknown>;                  // slot input, see below
+  message?: {                                        // message.after only
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+    reasoning?: string;
+    model?: string;
+    toolCalls?: ToolCall[];
+    images?: Array<{ mimeType: string; name?: string }>;
+  };
+  composer?: { submit(text: string): void };         // composer.actions only
   request<T>(path: string, init?: RequestInit): Promise<T>;
 }
 
 interface ConsoleExtension {
   id: string;                                        // unique within the plugin
-  slot: "sidebar.footer" | "settings.section" | "session.header";
+  slot: "sidebar.footer" | "settings.section" | "session.header"
+      | "message.after" | "composer.actions";
   order?: number;                                    // lower renders first, default 100
+  match?: {                                          // message.after filtering
+    roles?: Array<"user" | "assistant">;
+    toolNames?: string[];
+  };
   mount(element: HTMLElement, context: ConsoleContext): void | (() => void);
 }
 ```
@@ -121,17 +139,51 @@ The console copies its CSS custom properties (`--bg`, `--text`, `--accent`, ...)
 root and refreshes them when the system colour scheme changes. Use `var(--text-muted)` rather than
 hard-coded colours so a bundle works in both themes.
 
+`context.message` omits base64 image bytes; call `request` if a contribution needs the actual
+pixels. Tool arguments and results are included through `toolCalls`, so a message extension can
+recognise its own output. `context.payload` carries the raw slot input for new slots and is the
+forward-compatible place for future data.
+
+`context.composer.submit(text)` asks the console to send `text` as a new user turn. The console
+still owns the request, the API token and the run lifecycle; the bundle only proposes the prompt.
+Empty or whitespace-only text is ignored and the call is capped at 100,000 characters. Because a
+prompt can mutate the workspace, the bridge is absent unless the manifest declares the capability:
+
+```json
+{ "web": { "entry": "panel.js", "capabilities": ["composer.submit"] } }
+```
+
+Unknown capabilities are dropped with a warning, exactly like malformed API grants. Read-only
+bundles can still register `composer.actions` to show information, but cannot start a run.
+
 ## Slots
 
-| Slot | Where it renders | Session scoped |
-| --- | --- | --- |
-| `sidebar.footer` | Above the settings link in the session list | No |
-| `session.header` | Right side of the session toolbar | Yes |
-| `settings.section` | Inside the settings drawer | No |
+| Slot | Where it renders | Session scoped | Payload |
+| --- | --- | --- | --- |
+| `sidebar.footer` | Above the settings link in the session list | No | — |
+| `session.header` | Right side of the session toolbar | Yes | — |
+| `settings.section` | Inside the settings drawer | No | — |
+| `message.after` | Under every matching user or assistant message | Yes | `message` |
+| `composer.actions` | Under the composer box | Yes | `composer` |
 
-Extensions remount when the active session changes, so `session.header` can read
-`context.sessionId` and refresh. Slots are intentionally few: a stable surface is easier to keep
-compatible than a component tree.
+`message.after` mounts one iframe per matching message. Narrow it with `match` so the console does
+not create an island for every turn:
+
+```js
+api.register({
+  id: "tool-timing",
+  slot: "message.after",
+  match: { roles: ["assistant"], toolNames: ["browser_screenshot"] },
+  mount(element, context) {
+    element.textContent = `Rendered from ${context.message.toolCalls.length} tool calls`;
+  },
+});
+```
+
+Extensions remount when the active session changes or when a slot payload changes, so
+`session.header` can read `context.sessionId` and refresh. Message payloads are stable once a turn
+is persisted; streaming messages do not mount extensions until the turn completes. Slots are
+intentionally few: a stable surface is easier to keep compatible than a component tree.
 
 ## Lifecycle and failures
 
@@ -144,8 +196,9 @@ compatible than a component tree.
    plugins still load.
 
 A bundle that registers nothing, times out during discovery (five seconds) or throws is reported
-once and does not affect other plugins. Reloading the page reloads bundles; there is no hot-reload
-channel yet.
+once and does not affect other plugins. Registrations carry `match` metadata during discovery, so
+filtering happens before any iframe is created. Reloading the page reloads bundles; there is no
+hot-reload channel yet.
 
 ## Trust boundary
 
@@ -165,6 +218,10 @@ default a bundle can only read, and mutating routes must be declared in the mani
 still not a sandbox for a malicious plugin: every granted route runs with the signed-in user's
 authority, so review bundles like server-side plugins and use `plugins.allow` when the plugin
 directory is not fully trusted.
+
+The same applies to `composer.submit`: a capability is permission, not user intent. A bundle can
+call it without a click, so treat `capabilities: ["composer.submit"]` like a write grant and review
+why a plugin needs to start runs.
 
 The console and the API may live on different origins (a static console deployment, or the Vite dev
 server). The sandbox is always served by the API origin; plugin assets are public and CORS-enabled,

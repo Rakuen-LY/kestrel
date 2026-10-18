@@ -73,6 +73,18 @@ describe("PluginHost browser contributions", () => {
     });
   });
 
+  it("keeps known capabilities and drops unknown ones", async () => {
+    const root = await makeWebPlugin({
+      entry: "panel.js",
+      capabilities: ["composer.submit", "filesystem.root", 42],
+    });
+    const { host: instance } = host(root);
+    expect((await instance.discover())[0].web).toEqual({
+      entry: "panel.js",
+      capabilities: ["composer.submit"],
+    });
+  });
+
   it("keeps an explicit empty grant list", async () => {
     const root = await makeWebPlugin({ entry: "panel.js", api: [] });
     const { host: instance } = host(root);

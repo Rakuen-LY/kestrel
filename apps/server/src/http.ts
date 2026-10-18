@@ -702,7 +702,20 @@ async function start(data) {
     plugin: data.plugin,
     endpoint: data.endpoint,
     sessionId: data.sessionId,
+    payload: data.payload ?? {},
+    message: data.payload?.message,
     request,
+    ...(data.slot === "composer.actions" && data.composer === true
+      ? {
+          composer: {
+            submit(text) {
+              if (typeof text === "string" && text.trim()) {
+                post({ type: "kestrel:composer", op: "submit", text });
+              }
+            },
+          },
+        }
+      : {}),
   };
   const registered = [];
   let mounted = false;
@@ -712,7 +725,12 @@ async function start(data) {
     register(extension) {
       if (!extension || typeof extension.mount !== "function" || !extension.id || !extension.slot) return;
       if (data.mode === "discover") {
-        registered.push({ id: extension.id, slot: extension.slot, order: extension.order });
+        registered.push({
+          id: extension.id,
+          slot: extension.slot,
+          order: extension.order,
+          match: extension.match,
+        });
         return;
       }
       if (extension.id !== data.extensionId || extension.slot !== data.slot) return;

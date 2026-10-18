@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChatMessage } from "@kestrel/protocol";
 import type { KestrelApi } from "../api.js";
-import { themeVariables, type LoadedExtension, type SlotName } from "../extensions.js";
+import {
+  matchesMessage,
+  messagePayload,
+  themeVariables,
+  type LoadedExtension,
+  type SlotName,
+} from "../extensions.js";
 import { apiAllowed } from "../grants.js";
 
 export function PluginSlot({
@@ -8,24 +15,47 @@ export function PluginSlot({
   extensions,
   api,
   sessionId,
+  message,
+  payload,
+  onComposerSubmit,
 }: {
   slot: SlotName;
   extensions: LoadedExtension[];
   api: KestrelApi;
   sessionId?: string;
+  /** Current message for `message.after`; extensions are filtered by `match`. */
+  message?: ChatMessage;
+  /** Slot-specific data; remounts the sandbox when its JSON value changes. */
+  payload?: Record<string, unknown>;
+  /** Called when a `composer.actions` bundle asks to send a prompt. */
+  onComposerSubmit?: (text: string) => void;
 }) {
+  if (slot === "message.after" && !message) return null;
   const matching = extensions
     .filter((extension) => extension.slot === slot)
+    .filter((extension) => slot !== "message.after" || matchesMessage(extension.match, message!))
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+
+  const data = {
+    ...payload,
+    ...(message ? { message: messagePayload(message) } : {}),
+  };
+  const dataKey = JSON.stringify(data);
+  if (matching.length === 0) return null;
 
   return (
     <>
       {matching.map((extension) => (
         <PluginFrame
-          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}`}
+          key={`${extension.plugin.id}:${extension.id}:${sessionId ?? ""}:${message?.id ?? ""}`}
           extension={extension}
           api={api}
           sessionId={sessionId}
+          payload={data}
+          payloadKey={dataKey}
+          onComposerSubmit={
+            extension.capabilities?.includes("composer.submit") ? onComposerSubmit : undefined
+          }
         />
       ))}
     </>
@@ -41,10 +71,16 @@ function PluginFrame({
   extension,
   api,
   sessionId,
+  payload,
+  payloadKey,
+  onComposerSubmit,
 }: {
   extension: LoadedExtension;
   api: KestrelApi;
   sessionId?: string;
+  payload: Record<string, unknown>;
+  payloadKey: string;
+  onComposerSubmit?: (text: string) => void;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(0);
@@ -69,6 +105,8 @@ function PluginFrame({
         entry: extension.entry,
         css: extension.css,
         sessionId,
+        payload,
+        composer: extension.capabilities?.includes("composer.submit") === true,
         theme: themeVariables(),
       });
     };
@@ -96,6 +134,7 @@ function PluginFrame({
             ok?: unknown;
             data?: unknown;
             error?: unknown;
+            text?: unknown;
           }
         | undefined;
       if (!data || typeof data !== "object") return;
@@ -110,6 +149,9 @@ function PluginFrame({
         }
       } else if (data.type === "kestrel:error") {
         setError(typeof data.message === "string" ? data.message : "The extension failed.");
+      } else if (data.type === "kestrel:composer" && typeof data.text === "string") {
+        const text = data.text.trim();
+        if (text) onComposerSubmit?.(text.slice(0, 100_000));
       } else if (data.type === "kestrel:request" && typeof data.id === "number") {
         if (typeof data.path !== "string") return;
         const init = (data.init ?? {}) as RequestInit;
@@ -152,7 +194,7 @@ function PluginFrame({
       observer.disconnect();
       if (mounted) element.src = "about:blank";
     };
-  }, [api, extension, sessionId]);
+  }, [api, extension, sessionId, payloadKey]);
 
   if (error) {
     return (

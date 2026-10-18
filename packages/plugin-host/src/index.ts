@@ -288,10 +288,23 @@ export class PluginHost implements PluginService {
     if (Array.isArray(declared.api) && api && api.length !== declared.api.length) {
       this.options.logger.warn("plugin web api grant ignored", { plugin: manifest.name });
     }
+    const capabilities = Array.isArray(declared.capabilities)
+      ? declared.capabilities.filter(
+          (capability): capability is "composer.submit" => capability === "composer.submit",
+        )
+      : undefined;
+    if (
+      Array.isArray(declared.capabilities) &&
+      capabilities &&
+      capabilities.length !== declared.capabilities.length
+    ) {
+      this.options.logger.warn("plugin web capability ignored", { plugin: manifest.name });
+    }
     return {
       entry,
       ...(css.length > 0 ? { css } : {}),
       ...(api ? { api } : {}),
+      ...(capabilities ? { capabilities } : {}),
     };
   }
 

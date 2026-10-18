@@ -6,6 +6,7 @@
   "web": {
     "entry": "panel.js",
     "css": ["panel.css"],
-    "api": ["GET /api/sessions", "GET /api/plugins"]
+    "api": ["GET /api/sessions", "GET /api/plugins"],
+    "capabilities": ["composer.submit"]
   }
 }

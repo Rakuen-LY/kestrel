@@ -206,6 +206,12 @@ export interface PluginWeb {
    * `/api/**`; an empty array denies every request.
    */
   api?: string[];
+  /**
+   * Extra console capabilities, granted explicitly by the manifest. Today
+   * `composer.submit` lets the bundle propose a user turn; without it
+   * `context.composer` is absent even in the composer slot.
+   */
+  capabilities?: Array<"composer.submit">;
 }
 
 export interface PluginInfo {

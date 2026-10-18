@@ -38,6 +38,36 @@ export default function activate(api) {
   });
 
   api.register({
+    id: "composer-recap",
+    slot: "composer.actions",
+    order: 20,
+    mount(element, context) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "metrics-action";
+      button.textContent = "Summarise this session";
+      button.addEventListener("click", () => {
+        context.composer?.submit("Summarise this session in three bullets. Mention the files that changed.");
+      });
+      element.append(button);
+    },
+  });
+
+  api.register({
+    id: "message-footer",
+    slot: "message.after",
+    match: { roles: ["assistant"] },
+    mount(element, context) {
+      const note = document.createElement("div");
+      note.className = "metrics-message";
+      note.textContent = context.message.model
+        ? `Rendered by a plugin · ${context.message.model}`
+        : "Rendered by a plugin";
+      element.append(note);
+    },
+  });
+
+  api.register({
     id: "settings-about",
     slot: "settings.section",
     order: 90,

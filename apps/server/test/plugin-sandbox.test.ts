@@ -66,6 +66,9 @@ describe("plugin sandbox host", () => {
     expect(html).toContain("kestrel:ready");
     expect(html).toContain("kestrel:request");
     expect(html).toContain("import(data.entry)");
+    expect(html).toContain("payload: data.payload ?? {}");
+    expect(html).toContain('type: "kestrel:composer"');
+    expect(html).toContain("match: extension.match");
   });
 
   it("is read-only", async () => {

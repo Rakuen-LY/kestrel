@@ -1915,6 +1915,16 @@ a {
   margin-bottom: 8px;
 }
 
+[data-slot="message.after"] {
+  margin-top: 8px;
+}
+
+[data-slot="composer.actions"] {
+  margin: 6px 0 0;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
 [data-slot="session.header"] {
   display: inline-flex;
   align-items: center;

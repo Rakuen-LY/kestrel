@@ -115,11 +115,17 @@ bundle:
   "name": "@example/plugin-web-metrics",
   "version": "0.1.0",
   "entry": "index.js",
-  "web": { "entry": "panel.js", "css": ["panel.css"] }
+  "web": {
+    "entry": "panel.js",
+    "css": ["panel.css"],
+    "api": ["GET /api/sessions", "GET /api/plugins"],
+    "capabilities": ["composer.submit"]
+  }
 }
 ```
 
-`index.js` provides a `web-metrics` service, and `web/panel.js` registers two extensions:
+`index.js` provides a `web-metrics` service, and `web/panel.js` registers four extensions: a
+sidebar summary, a message footer for assistant turns, a composer action and a settings section.
 
 ```js
 export default function activate(api) {
@@ -146,9 +152,11 @@ export default function activate(api) {
 }
 ```
 
-The console loads the bundle from `/plugins/<id>/panel.js` in a sandboxed iframe only while the
-plugin is active, and mounts it into the slot. The token stays inside the console: the bundle gets
-an authenticated `request` function, not credentials. Full contract in [Plugin UI](/guide/plugin-ui).
+The composer action calls `context.composer.submit(...)`, which is available because the manifest
+declares the capability. The console loads the bundle from `/plugins/<id>/panel.js` in a sandboxed
+iframe only while the plugin is active, and mounts it into the slot. The token stays inside the
+console: the bundle gets an authenticated `request` function, not credentials. Full contract in
+[Plugin UI](/guide/plugin-ui).
 
 ## Build a third example: a capability that links two services
 

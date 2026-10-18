@@ -8,3 +8,23 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+.metrics-action {
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.metrics-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.metrics-message {
+  color: var(--text-faint);
+  font-size: 11px;
+}

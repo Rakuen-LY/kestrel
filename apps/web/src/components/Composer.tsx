@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { ImageAttachment } from "@kestrel/protocol";
 import { imageFilesFrom, imageSrc, toAttachment } from "../images.js";
 import { AttachIcon, CloseIcon, SendIcon, StopIcon } from "./icons.js";
@@ -12,6 +20,7 @@ export function Composer({
   onSend,
   onCancel,
   onError,
+  extensionSlot,
 }: {
   busy: boolean;
   disabled?: boolean;
@@ -19,6 +28,8 @@ export function Composer({
   onSend: (value: string, images: ImageAttachment[]) => void | Promise<void>;
   onCancel: () => void | Promise<void>;
   onError?: (message: string) => void;
+  /** Slot contributions rendered under the composer box. */
+  extensionSlot?: ReactNode;
 }) {
   const [value, setValue] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -162,6 +173,7 @@ export function Composer({
           </button>
         )}
       </div>
+      {extensionSlot}
       <div className="composer-hint">
         <span>Kestrel can read and modify files in the workspace. Review tool calls before approving risky ones.</span>
         <span className="kbd-hint">Enter ↵</span>

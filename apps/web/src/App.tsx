@@ -249,6 +249,15 @@ export default function App() {
                   results={state.toolRuns}
                   onRewind={() => actions.rewind(message.id)}
                   rewindDisabled={state.busy}
+                  extensionSlot={
+                    <PluginSlot
+                      slot="message.after"
+                      extensions={extensions}
+                      api={api}
+                      sessionId={state.activeId}
+                      message={message}
+                    />
+                  }
                 />
               ))}
 
@@ -290,6 +299,16 @@ export default function App() {
           onSend={(value, images) => actions.send(value, images)}
           onError={(message) => actions.reportError(message)}
           onCancel={() => actions.cancel()}
+          extensionSlot={
+            <PluginSlot
+              slot="composer.actions"
+              extensions={extensions}
+              api={api}
+              sessionId={state.activeId}
+              payload={{ composer: { sessionId: state.activeId } }}
+              onComposerSubmit={(text) => void actions.send(text, [])}
+            />
+          }
         />
       </main>
 

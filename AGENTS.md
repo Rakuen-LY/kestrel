@@ -188,6 +188,11 @@ never contains agent logic.
   messages, height reports, and proxied `request` calls. Never import bundles into the console
   origin; the bearer token lives only in the parent. Plugin CSS vars are copied on mount and on
   `prefers-color-scheme` changes. The console CSP needs `frame-src *` for cross-origin deployments.
+  Slots are `sidebar.footer`, `settings.section`, `session.header`, `message.after` and
+  `composer.actions`. `messagePayload` strips base64 image data before postMessage; only
+  `composer.submit` may propose a prompt, and the console still performs the send. Registration
+  `match` metadata is validated during discovery so unmatched messages never create iframes.
+  `composer.submit` requires the `web.capabilities` grant and is absent from `context` otherwise.
 - Plugin UI API calls are default-deny beyond read-only `GET /api/**`; `web.api` grants are checked
   in the parent proxy after URL normalisation, so never forward a raw plugin path without calling
   `apiAllowed` first. `api: []` means no API access at all.

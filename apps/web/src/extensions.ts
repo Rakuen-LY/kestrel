@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BootstrapResponse, PluginInfo } from "@kestrel/protocol";
+import type { BootstrapResponse, ChatMessage, PluginInfo, ToolCall } from "@kestrel/protocol";
 import type { KestrelApi } from "./api.js";
 
 /**
@@ -7,7 +7,32 @@ import type { KestrelApi } from "./api.js";
  * contributes a self-contained island of DOM, not a React tree, so plugin
  * code cannot depend on the console's component internals or React version.
  */
-export type SlotName = "sidebar.footer" | "settings.section" | "session.header";
+export type SlotName =
+  | "sidebar.footer"
+  | "settings.section"
+  | "session.header"
+  | "message.after"
+  | "composer.actions";
+
+/** Declarative narrowing for slots that render once per item. */
+export interface SlotMatch {
+  /** Roles the extension renders for; omitted means user and assistant. */
+  roles?: Array<"user" | "assistant">;
+  /** Render only when the message issued one of these tool calls. */
+  toolNames?: string[];
+}
+
+/** Message projection sent to a sandbox: base64 image data stays in the console. */
+export interface RenderableMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+  reasoning?: string;
+  model?: string;
+  toolCalls?: ToolCall[];
+  images?: Array<{ mimeType: string; name?: string }>;
+}
 
 export interface ConsoleContext {
   plugin: { id: string; name: string; version: string };
@@ -15,6 +40,8 @@ export interface ConsoleContext {
   endpoint: string;
   /** Active session, when the slot is session-scoped. */
   sessionId?: string;
+  /** Slot-specific input; `message` for message.after, `composer` for composer.actions. */
+  payload: Record<string, unknown>;
   /** Authenticated JSON request against the Kestrel API. */
   request<T = unknown>(path: string, init?: RequestInit): Promise<T>;
 }
@@ -24,6 +51,8 @@ export interface ConsoleExtension {
   id: string;
   slot: SlotName;
   order?: number;
+  /** Narrows per-message slots without a mounted iframe per message. */
+  match?: SlotMatch;
   /** Receives an empty element; return a cleanup function if needed. */
   mount(element: HTMLElement, context: ConsoleContext): void | (() => void);
 }
@@ -38,6 +67,7 @@ export interface ExtensionContribution {
   id: string;
   slot: SlotName;
   order?: number;
+  match?: SlotMatch;
 }
 
 /** Everything the console needs to load a contribution in its own iframe. */
@@ -48,6 +78,8 @@ export interface LoadedExtension extends ExtensionContribution {
   css: string[];
   /** API routes this bundle may call through the proxy. */
   api?: string[];
+  /** Console capabilities from the manifest. */
+  capabilities?: string[];
 }
 
 export interface ExtensionError {
@@ -63,7 +95,39 @@ interface DiscoveryInput {
 }
 
 const DISCOVERY_TIMEOUT_MS = 5_000;
-const SLOTS = new Set<SlotName>(["sidebar.footer", "settings.section", "session.header"]);
+const SLOTS = new Set<SlotName>([
+  "sidebar.footer",
+  "settings.section",
+  "session.header",
+  "message.after",
+  "composer.actions",
+]);
+
+export function messagePayload(message: ChatMessage): RenderableMessage {
+  return {
+    id: message.id,
+    role: message.role === "user" ? "user" : "assistant",
+    content: message.content,
+    createdAt: message.createdAt,
+    ...(message.reasoning ? { reasoning: message.reasoning } : {}),
+    ...(message.model ? { model: message.model } : {}),
+    ...(message.toolCalls?.length ? { toolCalls: message.toolCalls } : {}),
+    ...(message.images?.length
+      ? { images: message.images.map(({ mimeType, name }) => ({ mimeType, ...(name ? { name } : {}) })) }
+      : {}),
+  };
+}
+
+export function matchesMessage(match: SlotMatch | undefined, message: ChatMessage): boolean {
+  if (message.role !== "user" && message.role !== "assistant") return false;
+  if (!match) return true;
+  if (match.roles?.length && !match.roles.includes(message.role)) return false;
+  if (match.toolNames?.length) {
+    const names = new Set((message.toolCalls ?? []).map((call) => call.name));
+    if (!match.toolNames.some((name) => names.has(name))) return false;
+  }
+  return true;
+}
 
 /**
  * Runs every active bundle in a sandboxed iframe and records what it registers.
@@ -102,6 +166,7 @@ export async function loadConsoleExtensions(
           entry,
           css,
           ...(plugin.web.api ? { api: plugin.web.api } : {}),
+          ...(plugin.web.capabilities ? { capabilities: plugin.web.capabilities } : {}),
         });
       }
     } catch (error) {
@@ -190,17 +255,35 @@ function normalizeContributions(value: unknown): ExtensionContribution[] {
   const contributions: ExtensionContribution[] = [];
   for (const item of value) {
     if (!item || typeof item !== "object") continue;
-    const record = item as { id?: unknown; slot?: unknown; order?: unknown };
+    const record = item as { id?: unknown; slot?: unknown; order?: unknown; match?: unknown };
     if (typeof record.id !== "string" || !record.id || seen.has(record.id)) continue;
     if (typeof record.slot !== "string" || !SLOTS.has(record.slot as SlotName)) continue;
     seen.add(record.id);
+    const match = normalizeMatch(record.match);
     contributions.push({
       id: record.id,
       slot: record.slot as SlotName,
       ...(typeof record.order === "number" ? { order: record.order } : {}),
+      ...(match ? { match } : {}),
     });
   }
   return contributions;
+}
+
+function normalizeMatch(value: unknown): SlotMatch | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as { roles?: unknown; toolNames?: unknown };
+  const roles = Array.isArray(record.roles)
+    ? record.roles.filter((role): role is "user" | "assistant" => role === "user" || role === "assistant")
+    : [];
+  const toolNames = Array.isArray(record.toolNames)
+    ? record.toolNames.filter((name): name is string => typeof name === "string" && name.length > 0)
+    : [];
+  if (roles.length === 0 && toolNames.length === 0) return undefined;
+  return {
+    ...(roles.length ? { roles } : {}),
+    ...(toolNames.length ? { toolNames } : {}),
+  };
 }
 
 /** Copies the console's CSS custom properties so plugin DOM inherits the theme. */

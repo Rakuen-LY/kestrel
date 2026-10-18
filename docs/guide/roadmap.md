@@ -36,13 +36,15 @@ fit the plugin model. This page is a statement of intent, not a schedule.
 
 ### 2. Plugin UI hardening
 
-Bundles load into three slots (`sidebar.footer`, `session.header`, `settings.section`) from a
-plugin's `web/` directory, each in a sandboxed iframe with an opaque origin and a proxied API. The
-remaining work is about capability, not isolation:
+Bundles load into five slots (`sidebar.footer`, `session.header`, `settings.section`,
+`message.after`, `composer.actions`) from a plugin's `web/` directory, each in a sandboxed iframe
+with an opaque origin and a proxied API. The remaining work is about capability, not isolation:
 
 - ~~Per-plugin route grants~~ — `web.api` defaults to read-only and mutating routes must be
   declared; the proxy rejects anything else.
-- More slots: message renderer, composer actions, file viewer.
+- ~~Message and composer slots~~ — `message.after` filters by role and tool name, and
+  `composer.actions` can propose a prompt through `context.composer.submit`. A file viewer slot
+  remains.
 - A dev channel that reloads a bundle without a page refresh.
 
 See [Plugin UI](/guide/plugin-ui).

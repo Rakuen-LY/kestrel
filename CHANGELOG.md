@@ -8,6 +8,11 @@ All notable changes to Kestrel are documented here. The format follows
 
 ### Added
 
+- Plugin UI slots `message.after` and `composer.actions`. Message contributions declare `match`
+  (`roles`, `toolNames`), receive a projection without image bytes, and mount once per matching
+  message; composer contributions receive `context.composer.submit(text)` and can propose a turn
+  without touching the API token. The bridge requires `web.capabilities: ["composer.submit"]`, so
+  a read-only bundle cannot start runs. The example metrics bundle and docs show both.
 - Tool results can carry images. The runtime persists them on the tool message (with an `isError`
   flag), forwards them in `tool.finished`, sanitises plugin output (PNG/JPEG/WebP/GIF, 6 images,
   4 MB each, 12 MB total) and feeds them to models: Anthropic embeds them in `tool_result`, while
